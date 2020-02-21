@@ -46,8 +46,8 @@ def process_sheet(sheet):
         license_no = row['licence number']
         print(f"Lic info of {license_no}:")
         lic_statuses = query_license(license_no)
-        for lic_stat in lic_statuses:
-            print(f"\t{str(lic_stat)}")
+        for lic_class, _, _, lic_status in lic_statuses:
+            print(f"\t{lic_class} - {lic_status}")
 
 
 def enum_rows(sheet):
