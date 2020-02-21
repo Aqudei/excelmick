@@ -10,6 +10,11 @@ autopep8 = "*"
 
 [packages]
 openpyxl = "*"
+wheel = "*"
+numpy = "*"
+pandas = "*"
+requests = "*"
+beautifulsoup4 = "*"
 
 [requires]
 python_version = "3.7"
