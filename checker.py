@@ -6,11 +6,7 @@ import requests
 from bs4 import BeautifulSoup
 import itertools
 import numpy as np
-
-sheets_filter = [
-    'QBCC'
-]
-
+import json
 
 # def get_column_indexes(row):
 #     surname = None
@@ -85,6 +81,11 @@ def enum_rows(sheet):
     #     pass
 
 
+def read_config():
+    with open('./config.json', 'rt', errors='ignore') as fp:
+        return json.loads(fp.read())
+
+
 if __name__ == "__main__":
 
     # with open('./result.html', 'rt') as fp:
@@ -103,8 +104,10 @@ if __name__ == "__main__":
     print(f"Found {len(wb.sheetnames)} sheets:")
     print('\n'.join([f'\t{s}' for s in wb.sheetnames]))
 
+    config = read_config()
+
     for sheetname in wb.sheetnames:
-        for filtsheet in sheets_filter:
+        for filtsheet in config["sheets_filter"]:
             if filtsheet.lower() in sheetname.lower():
                 print(f"Processing {sheetname}")
                 process_sheet(wb[sheetname])
