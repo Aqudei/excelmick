@@ -47,8 +47,15 @@ def process_sheet(sheet, wb, orig_filename):
             wb.save(orig_filename)
 
         if not 'licence number' in data:
-            print("License is BLANK in the excel file !")
-            row[config['status_index']].value = "License Number is Blank!"
+            print("License No. Column not found !")
+            row[config['status_index']].value = "No License Number Column found!"
+            row[config['last_checked_index']].value = datetime.now().date()
+            count = count + 1
+            continue
+
+        if not data['licence number'] or data['licence number'].strip() == '':
+            print("License No. is BLANK in the excel file !")
+            row[config['status_index']].value = "Licens No is BLANK !"
             row[config['last_checked_index']].value = datetime.now().date()
             count = count + 1
             continue
