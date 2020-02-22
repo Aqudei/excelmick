@@ -7,13 +7,14 @@ from bs4 import BeautifulSoup
 import itertools
 import numpy as np
 import json
-
+from datetime import datetime
 # def get_column_indexes(row):
 #     surname = None
 
 #     for idx, c in enumerate(row):
 #         if "sur" in str(c.value).lower():
 #             surname = idx + 1
+
 
 def parse_response(html):
     soup = BeautifulSoup(html, 'html.parser')
@@ -34,16 +35,41 @@ def query_license(license_no):
         yield r
 
 
-def process_sheet(sheet):
-    for row in enum_rows(sheet):
-        if not 'licence number' in row:
-            raise Exception("The column 'licence number' was not found")
+def process_sheet(sheet, wb, orig_filename):
+    config = read_config()
+    count = 0
 
-        license_no = row['licence number']
-        print(f"Lic info of {license_no}:")
-        lic_statuses = query_license(license_no)
-        for lic_class, _, _, lic_status in lic_statuses:
-            print(f"\t{lic_class} - {lic_status}")
+    for row, data in enum_rows(sheet):
+
+        if count > 0 and (count % config['numrec_before_save']) == 0:
+            print("===============================================\n \
+                Saving progress to excel file...\n==================================")
+            wb.save(orig_filename)
+
+        if not 'licence number' in data:
+            print("License is BLANK in the excel file !")
+            row[config['status_index']].value = "License Number is Blank!"
+            row[config['last_checked_index']].value = datetime.now().date()
+            count = count + 1
+            continue
+
+        license_no = data['licence number']
+        print(f"Feetching License info of {license_no}:")
+        lic_statuses = list(query_license(license_no))
+
+        if len(lic_statuses) > 0:
+            print("License info found!")
+            lic_class, _, _, lic_status = lic_statuses[0]
+            print(f"\tLicense Class: {lic_class}")
+            print(f"\tStatus: {lic_status}")
+            row[config['status_index']].value = lic_status.title().strip()
+            row[config['last_checked_index']].value = datetime.now().date()
+        else:
+            print("License not found in online register !")
+            row[config['status_index']].value = "Missing in Register"
+            row[config['last_checked_index']].value = datetime.now().date()
+
+        count = count + 1
 
 
 def enum_rows(sheet):
@@ -62,7 +88,6 @@ def enum_rows(sheet):
     #         sheet[f'A{row_start_index}'].value
 
     headers = list()
-    items = list()
 
     for i, r in enumerate(sheet.rows):
 
@@ -75,15 +100,18 @@ def enum_rows(sheet):
             item = dict()
             for i in range(len(headers)):
                 item[headers[i]] = str(r[i].value) if r[i].value else ''
-            yield item
+            yield r, item
 
     # for itm in items:
     #     pass
 
 
 def read_config():
+
     with open('./config.json', 'rt', errors='ignore') as fp:
-        return json.loads(fp.read())
+        conf = json.loads(fp.read())
+
+    return conf
 
 
 if __name__ == "__main__":
@@ -110,6 +138,7 @@ if __name__ == "__main__":
         for filtsheet in config["sheets_filter"]:
             if filtsheet.lower() in sheetname.lower():
                 print(f"Processing {sheetname}")
-                process_sheet(wb[sheetname])
+                process_sheet(wb[sheetname], wb, args.input)
 
+    wb.save(args.input)
     wb.close()
