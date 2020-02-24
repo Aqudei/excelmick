@@ -35,8 +35,101 @@ def query_license(license_no):
         yield r
 
 
-def process_sheet(sheet, wb, orig_filename):
+def query_arch_registration(registration_no):
+
+    url = f'https://www.boaq.qld.gov.au/Shared_Content/ContactManagement/Profile.aspx?ID={registration_no}'
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+    parts = [p.text.strip("\r\n\t ")
+             for p in soup.select('.PanelFieldValue > span')]
+    print(f"Num Parts: {len(parts)}")
+
+    if len(parts) == 12:
+        name = parts[0]
+        company = parts[1]
+        date_joined = parts[2]
+        job_type = parts[3]
+        status = parts[4]
+        date_registered = parts[5]
+
+        return name, company, date_joined, job_type, status, date_registered
+
+
+def process_sheet_arch(wb, sheetname, orig_filename, config):
+
+    if not 'architects' in sheetname.lower():
+        return
+
+    print("Processing Architects Tab...")
+    sheet = wb[sheetname]
+
     config = read_config()
+    count = 0
+
+    for row, data in enum_rows(sheet):
+
+        if count > 0 and (count % config['numrec_before_save']) == 0:
+            print("===============================================\n \
+                Saving progress to excel file...\n==================================")
+            wb.save(orig_filename)
+
+        if not 'Registration' in data:
+            print("Registration No. Column not found !")
+            row[config['sheets_config'][sheetname]['status_index']
+                ].value = "No Registration Number Column found!"
+            row[config['sheets_config'][sheetname]
+                ['last_checked_index']].value = datetime.now().date()
+            count = count + 1
+            continue
+
+        if not data['Registration'] or data['Registration'].strip() == '':
+            print("Registration No. is BLANK in the excel file !")
+            row[config['sheets_config'][sheetname]
+                ['status_index']].value = "Registration No. is BLANK !"
+            row[config['sheets_config'][sheetname]
+                ['last_checked_index']].value = datetime.now().date()
+            count = count + 1
+            continue
+
+        registration_no = data['Registration']
+        print(f"Feetching Registration info of {registration_no}:")
+        reg_status = query_arch_registration(registration_no)
+
+        if reg_status:
+            print("Registration info found!")
+
+            name, company, date_joined, job_type, status, date_registered = reg_status
+
+            # lic_class, _, _, lic_status = lic_statuses[0]
+            print(f"\tName: {name}")
+            print(f"\tCompany: {company}")
+            print(f"\tDate Joined: {date_joined}")
+            print(f"\tType: {job_type}")
+            print(f"\tStatus: {status}")
+            print(f"\tDate Registered: {date_registered}")
+
+            row[config['sheets_config'][sheetname]['status_index']
+                ].value = status.strip().title()
+            row[config['sheets_config'][sheetname]
+                ['last_checked_index']].value = datetime.now().date()
+        else:
+            print("Registration info not found in online register !")
+            row[config['sheets_config'][sheetname]
+                ['status_index']].value = "Missing in Register"
+            row[config['sheets_config'][sheetname]
+                ['last_checked_index']].value = datetime.now().date()
+
+        count = count + 1
+
+
+def process_sheet_qbcc(wb, sheetname, orig_filename, config):
+    if not 'qbcc' in sheetname.lower():
+        return
+
+    print("Processing Architects Tab...")
+
+    sheet = wb[sheetname]
+
     count = 0
 
     for row, data in enum_rows(sheet):
@@ -48,15 +141,19 @@ def process_sheet(sheet, wb, orig_filename):
 
         if not 'licence number' in data:
             print("License No. Column not found !")
-            row[config['status_index']].value = "No License Number Column found!"
-            row[config['last_checked_index']].value = datetime.now().date()
+            row[config['sheets_config'][sheetname]['status_index']
+                ].value = "No License Number Column found!"
+            row[config['sheets_config'][sheetname]['last_checked_index']
+                ].value = datetime.now().date()
             count = count + 1
             continue
 
         if not data['licence number'] or data['licence number'].strip() == '':
             print("License No. is BLANK in the excel file !")
-            row[config['status_index']].value = "Licens No is BLANK !"
-            row[config['last_checked_index']].value = datetime.now().date()
+            row[config['sheets_config'][sheetname]['status_index']
+                ].value = "Licens No is BLANK !"
+            row[config['sheets_config'][sheetname]['last_checked_index']
+                ].value = datetime.now().date()
             count = count + 1
             continue
 
@@ -69,12 +166,17 @@ def process_sheet(sheet, wb, orig_filename):
             lic_class, _, _, lic_status = lic_statuses[0]
             print(f"\tLicense Class: {lic_class}")
             print(f"\tStatus: {lic_status}")
-            row[config['status_index']].value = lic_status.title().strip()
-            row[config['last_checked_index']].value = datetime.now().date()
+
+            row[config['sheets_config'][sheetname]['status_index']
+                ].value = lic_status.title().strip()
+            row[config['sheets_config'][sheetname]['last_checked_index']
+                ].value = datetime.now().date()
         else:
             print("License not found in online register !")
-            row[config['status_index']].value = "Missing in Register"
-            row[config['last_checked_index']].value = datetime.now().date()
+            row[config['sheets_config'][sheetname]
+                ['status_index']].value = "Missing in Register"
+            row[config['sheets_config'][sheetname]
+                ['last_checked_index']].value = datetime.now().date()
 
         count = count + 1
 
@@ -142,10 +244,11 @@ if __name__ == "__main__":
     config = read_config()
 
     for sheetname in wb.sheetnames:
-        for filtsheet in config["sheets_filter"]:
-            if filtsheet.lower() in sheetname.lower():
+        for filtsheet in config["sheets_config"].keys():
+            if filtsheet.lower() == sheetname.lower():
                 print(f"Processing {sheetname}")
-                process_sheet(wb[sheetname], wb, args.input)
+                # process_sheet_qbcc(wb, sheetname, args.input, config)
+                process_sheet_arch(wb, sheetname, args.input, config)
 
     wb.save(args.input)
     wb.close()

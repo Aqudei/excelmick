@@ -1,9 +1,16 @@
 {
-    "sheets_filter": [
-        "QBCC"
-    ],
-    "license_index": 2,
-    "status_index": 7,
-    "last_checked_index": 9,
+    "sheets_config": {
+        "2. QBCC": {
+            "license_index": 2,
+            "status_index": 7,
+            "last_checked_index": 9
+        },
+        "3. Architects": {
+            "registration_index": 2,
+            "status_index": 6,
+            "last_checked_index": 7
+        },
+        "4. Engineers": {}
+    },
     "numrec_before_save": 32
 }
