@@ -42,6 +42,67 @@ def query_license(license_no):
         yield r
 
 
+def query_engr_registration(registration_no, driver: Chrome):
+    try:
+        url1 = 'https://portal.bpeq.qld.gov.au/BPEQPortal/Search_for_a_RPEQ/BPEQPortal/Engineer_Search.aspx'
+        driver.get(url1)
+        element = WebDriverWait(driver, 16).until(EC.presence_of_element_located(
+            (By.ID, 'ctl01_TemplateBody_WebPartManager1_gwpciEngineersearch_ciEngineersearch_ResultsGrid_Sheet0_Input3_TextBox1')))
+        element.send_keys(registration_no)
+        element = WebDriverWait(driver, 16).until(EC.presence_of_element_located(
+            (By.ID, 'ctl01_TemplateBody_WebPartManager1_gwpciEngineersearch_ciEngineersearch_ResultsGrid_Sheet0_SubmitButton')))
+        element.click()
+        element = WebDriverWait(driver, 16).until(EC.presence_of_element_located(
+            (By.XPATH, '//*[@id="ctl01_TemplateBody_WebPartManager1_gwpciEngineersearch_ciEngineersearch_ResultsGrid_Grid1_ctl00__0"]/td[1]/a')))
+        registration_no = element.get_attribute('href').split("=")[1]
+        url = f'https://portal.bpeq.qld.gov.au/Party.aspx?ID={registration_no}'
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        parts = [p.text.strip("\r\n\t ")
+                 for p in soup.select('.PanelFieldValue > span')]
+        print(f"Num Parts: {len(parts)}")
+
+        if len(parts) == 12:
+            name = parts[0]
+            company = parts[1]
+            date_joined = parts[2]
+            job_type = parts[3]
+            status = parts[4]
+            date_registered = parts[5]
+
+            return name, company, date_joined, job_type, status, date_registered
+        elif len(parts) == 11:
+            name = parts[0]
+            date_joined = parts[1]
+            job_type = parts[2]
+            status = parts[3]
+            date_registered = parts[4]
+
+            return name, None, date_joined, job_type, status, date_registered
+        elif len(parts) == 16:
+            name = parts[0]
+            company = parts[1]
+            date_joined = parts[2]
+            job_type = parts[3]
+            _ = parts[4]
+            status = parts[5]
+            date_registered = parts[6]
+
+            return name, company, date_joined, job_type, status, date_registered
+        elif len(parts) == 15:
+            name = parts[0]
+            date_joined = parts[1]
+            job_type = parts[2]
+            _ = parts[3]
+            status = parts[4]
+            date_registered = parts[5]
+
+            return name, None, date_joined, job_type, status, date_registered
+
+    except Exception as e:
+        print(e)
+
+
 def query_arch_registration(registration_no, driver: Chrome):
     try:
         url1 = 'https://www.boaq.qld.gov.au/BOAQ/Search_Register/BOAQ/Search_Register/Architect_Search.aspx'
@@ -127,6 +188,77 @@ def process_sheet_arch(wb, sheetname, orig_filename, config):
         registration_no = data['Registration']
         print(f"Feetching Registration info of {registration_no}:")
         reg_status = query_arch_registration(registration_no, driver)
+
+        if reg_status:
+            print("Registration info found!")
+
+            name, company, date_joined, job_type, status, date_registered = reg_status
+
+            # lic_class, _, _, lic_status = lic_statuses[0]
+            print(f"\tName: {name}")
+            print(f"\tCompany: {company}")
+            print(f"\tDate Joined: {date_joined}")
+            print(f"\tType: {job_type}")
+            print(f"\tStatus: {status}")
+            print(f"\tDate Registered: {date_registered}")
+
+            row[config['sheets_config'][sheetname]['status_index']
+                ].value = status.strip().title()
+            row[config['sheets_config'][sheetname]
+                ['last_checked_index']].value = datetime.now().date()
+        else:
+            print("Registration info not found in online register !")
+            row[config['sheets_config'][sheetname]
+                ['status_index']].value = "Missing in Register"
+            row[config['sheets_config'][sheetname]
+                ['last_checked_index']].value = datetime.now().date()
+
+        count = count + 1
+
+
+def process_sheet_engr(wb, sheetname, orig_filename, config):
+
+    if not 'engineers' in sheetname.lower():
+        return
+
+    print("Processing Engineers Tab...")
+    sheet = wb[sheetname]
+
+    config = read_config()
+    count = 0
+
+    options = ChromeOptions()
+    # options.add_argument("headless")
+    driver = Chrome(options=options)
+
+    for row, data in enum_rows(sheet):
+
+        if count > 0 and (count % config['numrec_before_save']) == 0:
+            print("===============================================\n \
+                Saving progress to excel file...\n==================================")
+            wb.save(orig_filename)
+
+        if not 'Registration' in data:
+            print("Registration No. Column not found !")
+            row[config['sheets_config'][sheetname]['status_index']
+                ].value = "No Registration Number Column found!"
+            row[config['sheets_config'][sheetname]
+                ['last_checked_index']].value = datetime.now().date()
+            count = count + 1
+            continue
+
+        if not data['Registration'] or data['Registration'].strip() == '':
+            print("Registration No. is BLANK in the excel file !")
+            row[config['sheets_config'][sheetname]
+                ['status_index']].value = "Registration No. is BLANK !"
+            row[config['sheets_config'][sheetname]
+                ['last_checked_index']].value = datetime.now().date()
+            count = count + 1
+            continue
+
+        registration_no = data['Registration']
+        print(f"Feetching Registration info of {registration_no}:")
+        reg_status = query_engr_registration(registration_no, driver)
 
         if reg_status:
             print("Registration info found!")
@@ -282,8 +414,9 @@ if __name__ == "__main__":
                 if filtsheet.lower() == sheetname.lower():
                     print(f"Processing {sheetname}")
                     # process_sheet_qbcc(wb, sheetname, args.input, config)
-                    process_sheet_arch(
-                        wb, sheetname, args.input, config)
+                    # process_sheet_arch(
+                    #     wb, sheetname, args.input, config)
+                    process_sheet_engr(wb, sheetname, args.input, config)
 
         wb.save(args.input)
 

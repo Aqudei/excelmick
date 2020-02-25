@@ -10,7 +10,11 @@
             "status_index": 6,
             "last_checked_index": 7
         },
-        "4. Engineers": {}
+        "4. Engineers": {
+            "registration_index": 2,
+            "status_index": 6,
+            "last_checked_index": 7
+        }
     },
     "numrec_before_save": 32
 }
