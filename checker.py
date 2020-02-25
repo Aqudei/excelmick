@@ -413,6 +413,9 @@ if __name__ == "__main__":
             for filtsheet in config["sheets_config"].keys():
                 if filtsheet.lower() == sheetname.lower():
                     print(f"Processing {sheetname}")
+
+                    # Remove the # from the lines below to uncomment them
+
                     # process_sheet_qbcc(wb, sheetname, args.input, config)
                     # process_sheet_arch(
                     #     wb, sheetname, args.input, config)
