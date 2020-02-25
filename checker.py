@@ -78,7 +78,7 @@ def query_arch_registration(registration_no, driver: Chrome):
             status = parts[3]
             date_registered = parts[4]
 
-            return name, company, None, job_type, status, date_registered
+            return name, None, date_joined, job_type, status, date_registered
 
     except Exception as e:
         print(e)
