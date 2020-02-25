@@ -36,7 +36,7 @@ def parse_response(html):
 
 
 def query_license(license_no):
-    url = f'http://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/ShowDetailResultContent.aspx?LicNO={license_no}&licCat=LIC&name=&firstName=&searchType=Contractor&FromPage=SearchContr'
+    url = f'http://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/ShowDetailResultContent.aspx?LicNO={license_no.strip("\r\n\t ")}&licCat=LIC&name=&firstName=&searchType=Contractor&FromPage=SearchContr'
     response = requests.get(url)
     for r in parse_response(response.text):
         yield r
