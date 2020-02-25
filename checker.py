@@ -72,7 +72,6 @@ def query_arch_registration(registration_no, driver: Chrome):
 
             return name, company, date_joined, job_type, status, date_registered
         elif len(parts) == 11:
-            import pdb; pdb.set_trace()
             name = parts[0]
             date_joined = parts[1]
             job_type = parts[2]
