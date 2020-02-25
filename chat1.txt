@@ -1,0 +1,175 @@
+Hi, I am downloading the code to your Desktop
+
+Can you please copy the recent excel file you sent me to this folder
+
+
+ok done
+
+thanks
+
+For now i finished the code to query qbcc for license status. Ive yet to implement changing background color of excel row
+
+the colour of the row is only linked to the column status, if the status is not active it turns red that is conditional formatting
+
+Ok so, i just have  to set the column to "Active" :)
+
+BTW, some license have multiple "license class" each with different status ?
+
+yes i think test the first one and if active - status can be active - if not active put status and we can check that manually
+as it will be red
+
+Ok cool.
+
+So for the code, you can run it by going into the script directory using "cd"
+are you familiar with command prompt ?
+
+no i have not used it before
+
+okay it is simple, "cd" stands for "change directory". let me close first
+
+scratch this all, i will make one click script, please wait. 
+
+
+ok, i will explain first a small config
+
+what this means is that it will only process "worksheet" with QBCC in its name, i made this so i can ignore other sheet for now. ok ?
+
+
+
+yes great QBCC is the biggest by far and if we can get that to work it would be great!
+
+So for items with no license number, we will use surname and firstname ?
+
+no for no license just put "not active" if we need to check them later we will do it manually
+
+this one is a double up
+
+OKay, think i can proceed now with changing value of excel column. 
+
+OK great, that is the way we do it mannually at the moment, we check if the license is active and if OK we add the today's date into the last checked
+
+if no active on QBCC we right not active and today's date and it turns it red
+
+okay, hopefully i can finish this part by tomorrow . Fetching the result from the website and parsing the html table is the most challenging part.
+
+Great thanks, will you do the code and then we can log back into the computer to add to it or do you want to work on this computer to do it?
+
+i prefer to work on my own machine, will message you later. 
+
+Great news, I will check in the morning as i will go to bed soon if that is OK?
+
+Good night then
+
+thanks!  Have you accepted the contract on upwork?  do you want me to amend it so that you are covered for your work?
+sure   thanks
+
+sorry  i thought it was my computer. haha, ill sign out now from teamviewer
+
+===============================================================
+
+So the system will loop through all the rows and update status/date last checked.
+The system will save the excel file for every 32 row processed. 
+processing some a thousand records will take some time so system will save excel
+for every 32 row processed. Let me show you. 
+
+i have interrupted the system using "Ctrl+C". it should have been able to processed
+32+32+32 = 96 rows. let us check
+
+do you have question ?
+
+that looks great - the not in register ones - can we cross check them against QBCC license check manually just to see if there is an error?
+perfect that works well!!
+
+can we let it run through the whole system?
+
+sure. will take some time . just message me  in upwork when done.
+sorry i thought it was my computer against
+
+no worries that is great!!
+
+just need  to make some few edits. 
+Just message me when this is done ok ?
+
+ok thanks
+
+btw, let me show you the config file
+
+its done
+
+do you want to Check ?
+
+all of the files?
+
+that is amazing!!
+
+all of QBCC have been checked!
+
+i can cross check the incorrect ones for sure and then we can rerun it i suppose!
+
+yes you can rerun
+
+excel file must be close while the system run, ok ?
+
+OK cool, why don't i check the file first - i saw some double ups with contractors etc and get it right and then we can redo it!!
+
+sure, just pm me when youre done
+
+OK thank you so much, once we have this one, can we look at the next tabs
+
+ok
+
+Fixed Joseph ward - had doubled up license - will be good to rerun and check that one to see if it is now correct
+
+same for Licence Number:1279598 - was a double up
+============================================
+
+HI, right now i disabled the processing of qbcc so we can test directly for "Architects" #
+
+OK great thansk - sorry i was repling to a colleuge and forgot you were on the computer!!
+
+No problem, this is just qucick.  so we run the script now
+
+ i noticed this too there were some extra rows in the bottom of the excel having blank values. 
+
+ Yes i think we copied the QBCC one to start all of the other registers so there will be extras of blank - can we delete the blank ones?
+
+ sure, Can you do the deleting ? Its slow here in teamveiewr
+
+  htnakyses for sure
+
+  i deleted them but not sure if that will work as it seems they just stay there?  
+
+  there seems to be an issue with this search- i just search 4678 - and it came up with Elan Barr - 
+
+  do you think the number is not going across correctly?
+
+
+The issue is now fixed. I used a browser to fetch thre real "page id"
+Also it can now process the Architects and Engineers Tab
+  
+  Great news can we do a test on the xcel?
+  For the entire part so far - QBCC, Arch and Engineer?
+========
+  Updating code
+1) Open command prompt
+2) type
+    cd Desktop\excelmick<enter>
+3) type
+    git pull<enter>
+
+DONE
+
+Can you try it ?
+
+OK what do i do to run it?
+
+Just double click the "oneclick.bat"
+
+OK i will try that now thanks
+
+we need to update the code first
+
+ok i will include the code update in the oneclick.bat so the it will check always if the code is updated
+
+OK so now you will only need to click the "oneclick.bat"
+
