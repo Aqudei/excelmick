@@ -1,4 +1,9 @@
 
+import time
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.common.keys import Keys
 import openpyxl
 import argparse
 from openpyxl.worksheet.hyperlink import Hyperlink
@@ -8,6 +13,8 @@ import itertools
 import numpy as np
 import json
 from datetime import datetime
+from selenium.webdriver import Chrome, ChromeOptions
+
 # def get_column_indexes(row):
 #     surname = None
 
@@ -35,24 +42,47 @@ def query_license(license_no):
         yield r
 
 
-def query_arch_registration(registration_no):
+def query_arch_registration(registration_no, driver: Chrome):
+    try:
+        url1 = 'https://www.boaq.qld.gov.au/BOAQ/Search_Register/BOAQ/Search_Register/Architect_Search.aspx'
+        driver.get(url1)
+        element = WebDriverWait(driver, 16).until(EC.presence_of_element_located(
+            (By.ID, 'ctl01_TemplateBody_WebPartManager1_gwpciArchitectsearch_ciArchitectsearch_ResultsGrid_Sheet0_Input3_TextBox1')))
+        element.send_keys(registration_no)
+        element = WebDriverWait(driver, 16).until(EC.presence_of_element_located(
+            (By.NAME, 'ctl01$TemplateBody$WebPartManager1$gwpciArchitectsearch$ciArchitectsearch$ResultsGrid$Sheet0$SubmitButton')))
+        element.click()
+        element = WebDriverWait(driver, 16).until(EC.presence_of_element_located(
+            (By.XPATH, '//*[@id="ctl01_TemplateBody_WebPartManager1_gwpciArchitectsearch_ciArchitectsearch_ResultsGrid_Grid1_ctl00__0"]/td[1]/a')))
+        registration_no = element.get_attribute('href').split("=")[1]
+        url = f'https://www.boaq.qld.gov.au/Shared_Content/ContactManagement/Profile.aspx?ID={registration_no}'
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        parts = [p.text.strip("\r\n\t ")
+                 for p in soup.select('.PanelFieldValue > span')]
+        print(f"Num Parts: {len(parts)}")
 
-    url = f'https://www.boaq.qld.gov.au/Shared_Content/ContactManagement/Profile.aspx?ID={registration_no}'
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    parts = [p.text.strip("\r\n\t ")
-             for p in soup.select('.PanelFieldValue > span')]
-    print(f"Num Parts: {len(parts)}")
+        if len(parts) == 12:
+            name = parts[0]
+            company = parts[1]
+            date_joined = parts[2]
+            job_type = parts[3]
+            status = parts[4]
+            date_registered = parts[5]
 
-    if len(parts) == 12:
-        name = parts[0]
-        company = parts[1]
-        date_joined = parts[2]
-        job_type = parts[3]
-        status = parts[4]
-        date_registered = parts[5]
+            return name, company, date_joined, job_type, status, date_registered
+        elif len(parts) == 11:
+            import pdb; pdb.set_trace()
+            name = parts[0]
+            date_joined = parts[1]
+            job_type = parts[2]
+            status = parts[3]
+            date_registered = parts[4]
 
-        return name, company, date_joined, job_type, status, date_registered
+            return name, company, None, job_type, status, date_registered
+
+    except Exception as e:
+        print(e)
 
 
 def process_sheet_arch(wb, sheetname, orig_filename, config):
@@ -65,6 +95,10 @@ def process_sheet_arch(wb, sheetname, orig_filename, config):
 
     config = read_config()
     count = 0
+
+    options = ChromeOptions()
+    # options.add_argument("headless")
+    driver = Chrome(options=options)
 
     for row, data in enum_rows(sheet):
 
@@ -93,7 +127,7 @@ def process_sheet_arch(wb, sheetname, orig_filename, config):
 
         registration_no = data['Registration']
         print(f"Feetching Registration info of {registration_no}:")
-        reg_status = query_arch_registration(registration_no)
+        reg_status = query_arch_registration(registration_no, driver)
 
         if reg_status:
             print("Registration info found!")
@@ -236,19 +270,25 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    wb = openpyxl.load_workbook(args.input)
+    try:
+        wb = openpyxl.load_workbook(args.input)
 
-    print(f"Found {len(wb.sheetnames)} sheets:")
-    print('\n'.join([f'\t{s}' for s in wb.sheetnames]))
+        print(f"Found {len(wb.sheetnames)} sheets:")
+        print('\n'.join([f'\t{s}' for s in wb.sheetnames]))
 
-    config = read_config()
+        config = read_config()
 
-    for sheetname in wb.sheetnames:
-        for filtsheet in config["sheets_config"].keys():
-            if filtsheet.lower() == sheetname.lower():
-                print(f"Processing {sheetname}")
-                # process_sheet_qbcc(wb, sheetname, args.input, config)
-                process_sheet_arch(wb, sheetname, args.input, config)
+        for sheetname in wb.sheetnames:
+            for filtsheet in config["sheets_config"].keys():
+                if filtsheet.lower() == sheetname.lower():
+                    print(f"Processing {sheetname}")
+                    # process_sheet_qbcc(wb, sheetname, args.input, config)
+                    process_sheet_arch(
+                        wb, sheetname, args.input, config)
 
-    wb.save(args.input)
-    wb.close()
+        wb.save(args.input)
+
+    except Exception as e:
+        print(e)
+    finally:
+        wb.close()
