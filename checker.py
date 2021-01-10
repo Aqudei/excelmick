@@ -25,6 +25,10 @@ from selenium.webdriver import Chrome, ChromeOptions
 
 def parse_response(html):
     soup = BeautifulSoup(html, 'html.parser')
+
+    business_name_element = soup.select_one("#ctl00_generalContentPlaceHolder_LicenceInfoControl1_lbLicenceName")
+    trading_name_element = soup.select_one('ctl00_generalContentPlaceHolder_LicenceInfoControl1_lbTradingName')
+
     items = [td.text.strip("\r\n\t ") for td in soup.select(
         "table[id='ctl00_generalContentPlaceHolder_LicenceInfoControl1_gvLicenceClass'] td")]
 
