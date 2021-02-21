@@ -369,7 +369,8 @@ def enum_rows(sheet):
     headers = list()
 
     for i, r in enumerate(sheet.rows):
-
+        print(f"Processing Line # {i+1}...")
+        
         if i == 0:
             continue
         elif i == 1:
