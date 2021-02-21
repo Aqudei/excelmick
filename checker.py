@@ -13,7 +13,8 @@ import itertools
 import numpy as np
 import json
 from datetime import datetime
-from selenium.webdriver import Chrome, ChromeOptions
+from selenium.webdriver import ChromeOptions
+from seleniumrequests import Chrome
 
 # def get_column_indexes(row):
 #     surname = None
@@ -26,8 +27,10 @@ from selenium.webdriver import Chrome, ChromeOptions
 def parse_response(html):
     soup = BeautifulSoup(html, 'html.parser')
 
-    business_name_element = soup.select_one("#ctl00_generalContentPlaceHolder_LicenceInfoControl1_lbLicenceName")
-    trading_name_element = soup.select_one('ctl00_generalContentPlaceHolder_LicenceInfoControl1_lbTradingName')
+    business_name_element = soup.select_one(
+        "#ctl00_generalContentPlaceHolder_LicenceInfoControl1_lbLicenceName")
+    trading_name_element = soup.select_one(
+        'ctl00_generalContentPlaceHolder_LicenceInfoControl1_lbTradingName')
 
     items = [td.text.strip("\r\n\t ") for td in soup.select(
         "table[id='ctl00_generalContentPlaceHolder_LicenceInfoControl1_gvLicenceClass'] td")]
@@ -60,8 +63,9 @@ def query_engr_registration(registration_no, driver: Chrome):
         element = WebDriverWait(driver, 16).until(EC.presence_of_element_located(
             (By.XPATH, '//*[@id="ctl01_TemplateBody_WebPartManager1_gwpciEngineersearch_ciEngineersearch_ResultsGrid_Grid1_ctl00__0"]/td[1]/a')))
         registration_no = element.get_attribute('href').split("=")[1]
+
         url = f'https://portal.bpeq.qld.gov.au/Party.aspx?ID={registration_no}'
-        response = requests.get(url)
+        response = driver.request("GET", url, verify=False)
         soup = BeautifulSoup(response.text, 'html.parser')
         parts = [p.text.strip("\r\n\t ")
                  for p in soup.select('.PanelFieldValue > span')]
@@ -122,7 +126,7 @@ def query_arch_registration(registration_no, driver: Chrome):
             (By.XPATH, '//*[@id="ctl01_TemplateBody_WebPartManager1_gwpciArchitectsearch_ciArchitectsearch_ResultsGrid_Grid1_ctl00__0"]/td[1]/a')))
         registration_no = element.get_attribute('href').split("=")[1]
         url = f'https://www.boaq.qld.gov.au/Shared_Content/ContactManagement/Profile.aspx?ID={registration_no}'
-        response = requests.get(url)
+        response = driver.request("GET", url)
         soup = BeautifulSoup(response.text, 'html.parser')
         parts = [p.text.strip("\r\n\t ")
                  for p in soup.select('.PanelFieldValue > span')]
@@ -296,14 +300,15 @@ def process_sheet_qbcc(wb, sheetname, orig_filename, config):
     if not 'qbcc' in sheetname.lower():
         return
 
-    print("Processing Architects Tab...")
+    print("Processing Architects Tab <QBCC>...")
 
     sheet = wb[sheetname]
 
     count = 0
-
+    idx = 0
     for row, data in enum_rows(sheet):
-
+        idx = idx + 1
+        print(f"Processing Line #L{idx}")
         if count > 0 and (count % config['numrec_before_save']) == 0:
             print("===============================================\n \
                 Saving progress to excel file...\n==================================")
@@ -369,18 +374,23 @@ def enum_rows(sheet):
     headers = list()
 
     for i, r in enumerate(sheet.rows):
+
         print(f"Processing Line # {i+1}...")
-        
-        if i == 0:
+
+        values = [str(c.value).strip() for c in r]
+
+        if not 'surname' == values[0].lower() and not headers:
             continue
-        elif i == 1:
-            headers = [str(c.value).strip() for c in r]
+
+        if not headers:
+            headers = values
             continue
-        else:
-            item = dict()
-            for i in range(len(headers)):
-                item[headers[i]] = str(r[i].value) if r[i].value else ''
-            yield r, item
+
+        item = dict()
+        for h, c in zip(headers, r):
+            item[h] = str(c.value) if c.value else ''
+
+        yield r, item
 
     # for itm in items:
     #     pass
@@ -420,10 +430,10 @@ if __name__ == "__main__":
                 if filtsheet.lower() == sheetname.lower():
                     print(f"Processing {sheetname}")
 
-                    process_sheet_qbcc(wb, sheetname, args.input, config)
+                    # process_sheet_qbcc(wb, sheetname, args.input, config)
 
-                    process_sheet_arch(
-                        wb, sheetname, args.input, config)
+                    # process_sheet_arch(
+                    #     wb, sheetname, args.input, config)
 
                     process_sheet_engr(wb, sheetname, args.input, config)
 
