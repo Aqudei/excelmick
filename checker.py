@@ -430,10 +430,10 @@ if __name__ == "__main__":
                 if filtsheet.lower() == sheetname.lower():
                     print(f"Processing {sheetname}")
 
-                    # process_sheet_qbcc(wb, sheetname, args.input, config)
+                    process_sheet_qbcc(wb, sheetname, args.input, config)
 
-                    # process_sheet_arch(
-                    #     wb, sheetname, args.input, config)
+                    process_sheet_arch(
+                        wb, sheetname, args.input, config)
 
                     process_sheet_engr(wb, sheetname, args.input, config)
 
