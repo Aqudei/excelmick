@@ -414,6 +414,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("input")
+    parser.add_argument("--qbcc", action='store_true')
+    parser.add_argument("--engr", action='store_true')
+    parser.add_argument("--arch", action='store_true')
 
     args = parser.parse_args()
 
@@ -430,13 +433,15 @@ if __name__ == "__main__":
                 if filtsheet.lower() == sheetname.lower():
                     print(f"Processing {sheetname}")
 
-                    # process_sheet_qbcc(wb, sheetname, args.input, config)
+                    if args.qbcc:
+                        process_sheet_qbcc(wb, sheetname, args.input, config)
 
-                    # process_sheet_arch(
-                    #     wb, sheetname, args.input, config)
+                    if args.arch:
+                        process_sheet_arch(
+                            wb, sheetname, args.input, config)
 
-                    process_sheet_engr(wb, sheetname, args.input, config)
-
+                    if args.engr:
+                        process_sheet_engr(wb, sheetname, args.input, config)
 
     except Exception as e:
         print(e)
