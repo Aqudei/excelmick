@@ -1,3 +1,2 @@
 git pull origin master
-venv\Scripts\activate
-python checker.py "Competent person register and naming.xlsx" --qbcc --engr --arch
+venv\Scripts\python.exe checker.py "data\Competent person register and naming.xlsx" --qbcc --engr --arch
