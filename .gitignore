@@ -3,4 +3,10 @@ Competent person register and naming*
 venv/
 data/
 *.xlsx
+<<<<<<< HEAD
 debug.log
+=======
+debug.log
+app.log
+
+>>>>>>> f434c8b (surveyor)

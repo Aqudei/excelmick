@@ -1,6 +1,14 @@
+<<<<<<< HEAD
 beautifulsoup4
 openpyxl
 pandas
 pytz
 selenium
 selenium-requests
+=======
+pandas==2.2.2
+requests==2.32.3
+selenium-requests==2.0.4
+openpyxl==3.1.5
+beautifulsoup4==4.12.3
+>>>>>>> f434c8b (surveyor)
