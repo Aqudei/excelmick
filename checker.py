@@ -28,7 +28,7 @@ file_handler = logging.FileHandler("debug.log")  # For logging to a file
 
 # Set logging level for handlers (optional, inherits from logger if not set)
 console_handler.setLevel(logging.DEBUG)
-file_handler.setLevel(logging.DEBUG)
+file_handler.setLevel(logging.WARNING)
 
 # Create formatters and add them to the handlers
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -348,6 +348,9 @@ def process_sheet_engr(wb, sheetname, orig_filename, config):
         count = count + 1
 
 
+def process_sheet_electrician(wb, sheetname, orig_filename, config):
+    pass
+
 def process_sheet_qbcc(wb, sheetname, orig_filename, config):
     if not 'qbcc' in sheetname.lower():
         return
@@ -436,8 +439,6 @@ def enum_rows(sheet):
 
     for i, r in enumerate(sheet.rows):
 
-        logger.info(f"Processing Line # {i+1}...")
-
         values = [str(c.value).strip() for c in r]
 
         if not 'surname' == values[0].lower() and not headers:
@@ -501,6 +502,7 @@ if __name__ == "__main__":
 
                     if args.engr:
                         process_sheet_engr(wb, sheetname, args.input, config)
-
+        
+        logger.info("Process Completed.")
     except Exception as e:
         logger.exception(e)
