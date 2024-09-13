@@ -1,4 +1,5 @@
 
+import os
 import time
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
@@ -15,13 +16,43 @@ import json
 from datetime import datetime
 from selenium.webdriver import ChromeOptions
 from seleniumrequests import Chrome
+import logging
 
-# def get_column_indexes(row):
-#     surname = None
+# Create a custom logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)  # Set the minimum logging level
 
-#     for idx, c in enumerate(row):
-#         if "sur" in str(c.value).lower():
-#             surname = idx + 1
+# Create handlers
+console_handler = logging.StreamHandler()  # For logging to console
+file_handler = logging.FileHandler("debug.log")  # For logging to a file
+
+# Set logging level for handlers (optional, inherits from logger if not set)
+console_handler.setLevel(logging.DEBUG)
+file_handler.setLevel(logging.DEBUG)
+
+# Create formatters and add them to the handlers
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+console_handler.setFormatter(formatter)
+file_handler.setFormatter(formatter)
+
+# Add handlers to the logger
+logger.addHandler(console_handler)
+logger.addHandler(file_handler)
+
+
+default_request_headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',  # The version of requests will vary
+    'Accept-Encoding': 'gzip, deflate, br, zstd',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'Connection': 'keep-alive',
+    'Referer':'https://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/SearchBSALicenseeContent.aspx',
+    'Accept-Language':'en-US,en;q=0.8',
+    'Cache-Control':'no-cache',
+    'Connection': 'keep-alive'
+}
+
+session = requests.Session()
+session.headers.update(default_request_headers)
 
 
 def parse_response(html):
@@ -43,11 +74,24 @@ def parse_response(html):
 
 
 def query_license(license_no):
+    session.get('https://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/SearchBSALicenseeContent.aspx')
+
     license_no = license_no.strip("\r\n\t ")
-    url = f'http://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/ShowDetailResultContent.aspx?LicNO={license_no}&licCat=LIC&name=&firstName=&searchType=Contractor&FromPage=SearchContr'
-    response = requests.get(url)
+    url = f'http://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/ShowDetailResultContent.aspx'
+    params = {
+        'LicNO':f'{license_no}',
+        'licCat':'LIC',
+        'name':'',
+        'firstName':'',
+        'searchType':'Contractor',
+        'FromPage':'SearchContr'
+    }
+
+    response = session.get(url,params=params)
+    
     for r in parse_response(response.text):
         yield r
+        
 
 
 def query_engr_registration(registration_no, driver: Chrome):
@@ -69,7 +113,7 @@ def query_engr_registration(registration_no, driver: Chrome):
         soup = BeautifulSoup(response.text, 'html.parser')
         parts = [p.text.strip("\r\n\t ")
                  for p in soup.select('.PanelFieldValue > span')]
-        print(f"Num Parts: {len(parts)}")
+        logger.info(f"Num Parts: {len(parts)}")
 
         if len(parts) == 12:
             name = parts[0]
@@ -109,7 +153,7 @@ def query_engr_registration(registration_no, driver: Chrome):
             return name, None, date_joined, job_type, status, date_registered
 
     except Exception as e:
-        print(e)
+        logger.info(e)
 
 
 def query_arch_registration(registration_no, driver: Chrome):
@@ -130,7 +174,7 @@ def query_arch_registration(registration_no, driver: Chrome):
         soup = BeautifulSoup(response.text, 'html.parser')
         parts = [p.text.strip("\r\n\t ")
                  for p in soup.select('.PanelFieldValue > span')]
-        print(f"Num Parts: {len(parts)}")
+        logger.info(f"Num Parts: {len(parts)}")
 
         if len(parts) == 12:
             name = parts[0]
@@ -151,7 +195,7 @@ def query_arch_registration(registration_no, driver: Chrome):
             return name, None, date_joined, job_type, status, date_registered
 
     except Exception as e:
-        print(e)
+        logger.info(e)
 
 
 def process_sheet_arch(wb, sheetname, orig_filename, config):
@@ -159,7 +203,7 @@ def process_sheet_arch(wb, sheetname, orig_filename, config):
     if not 'architects' in sheetname.lower():
         return
 
-    print("Processing Architects Tab...")
+    logger.info("Processing Architects Tab...")
     sheet = wb[sheetname]
 
     config = read_config()
@@ -172,12 +216,12 @@ def process_sheet_arch(wb, sheetname, orig_filename, config):
     for row, data in enum_rows(sheet):
 
         if count > 0 and (count % config['numrec_before_save']) == 0:
-            print("===============================================\n \
+            logger.info("===============================================\n \
                 Saving progress to excel file...\n==================================")
             wb.save(orig_filename)
 
         if not 'Registration' in data:
-            print("Registration No. Column not found !")
+            logger.info("Registration No. Column not found !")
             row[config['sheets_config'][sheetname]['status_index']
                 ].value = "No Registration Number Column found!"
             row[config['sheets_config'][sheetname]
@@ -186,7 +230,7 @@ def process_sheet_arch(wb, sheetname, orig_filename, config):
             continue
 
         if not data['Registration'] or data['Registration'].strip() == '':
-            print("Registration No. is BLANK in the excel file !")
+            logger.info("Registration No. is BLANK in the excel file !")
             row[config['sheets_config'][sheetname]
                 ['status_index']].value = "Registration No. is BLANK !"
             row[config['sheets_config'][sheetname]
@@ -195,28 +239,28 @@ def process_sheet_arch(wb, sheetname, orig_filename, config):
             continue
 
         registration_no = data['Registration']
-        print(f"Feetching Registration info of {registration_no}:")
+        logger.info(f"Feetching Registration info of {registration_no}:")
         reg_status = query_arch_registration(registration_no, driver)
 
         if reg_status:
-            print("Registration info found!")
+            logger.info("Registration info found!")
 
             name, company, date_joined, job_type, status, date_registered = reg_status
 
             # lic_class, _, _, lic_status = lic_statuses[0]
-            print(f"\tName: {name}")
-            print(f"\tCompany: {company}")
-            print(f"\tDate Joined: {date_joined}")
-            print(f"\tType: {job_type}")
-            print(f"\tStatus: {status}")
-            print(f"\tDate Registered: {date_registered}")
+            logger.info(f"\tName: {name}")
+            logger.info(f"\tCompany: {company}")
+            logger.info(f"\tDate Joined: {date_joined}")
+            logger.info(f"\tType: {job_type}")
+            logger.info(f"\tStatus: {status}")
+            logger.info(f"\tDate Registered: {date_registered}")
 
             row[config['sheets_config'][sheetname]['status_index']
                 ].value = status.strip().title()
             row[config['sheets_config'][sheetname]
                 ['last_checked_index']].value = datetime.now().date()
         else:
-            print("Registration info not found in online register !")
+            logger.info("Registration info not found in online register !")
             row[config['sheets_config'][sheetname]
                 ['status_index']].value = "Missing in Register"
             row[config['sheets_config'][sheetname]
@@ -230,7 +274,7 @@ def process_sheet_engr(wb, sheetname, orig_filename, config):
     if not 'engineers' in sheetname.lower():
         return
 
-    print("Processing Engineers Tab...")
+    logger.info("Processing Engineers Tab...")
     sheet = wb[sheetname]
 
     config = read_config()
@@ -240,15 +284,23 @@ def process_sheet_engr(wb, sheetname, orig_filename, config):
     # options.add_argument("headless")
     driver = Chrome(options=options)
 
-    for row, data in enum_rows(sheet):
-
+    for row, d in enum_rows(sheet):
+        
+        data = {k.lower():v for k,v in d.items()}
+        
+        last_checked = row[config['sheets_config'][sheetname]['last_checked_index']
+            ].value
+        
+        if last_checked and isinstance(last_checked, datetime) and last_checked.date() >= datetime.now().date():
+            continue
+        
         if count > 0 and (count % config['numrec_before_save']) == 0:
-            print("===============================================\n \
+            logger.info("===============================================\n \
                 Saving progress to excel file...\n==================================")
             wb.save(orig_filename)
 
-        if not 'Registration' in data:
-            print("Registration No. Column not found !")
+        if not 'registration' in data:
+            logger.info("Registration No. Column not found !")
             row[config['sheets_config'][sheetname]['status_index']
                 ].value = "No Registration Number Column found!"
             row[config['sheets_config'][sheetname]
@@ -256,8 +308,8 @@ def process_sheet_engr(wb, sheetname, orig_filename, config):
             count = count + 1
             continue
 
-        if not data['Registration'] or data['Registration'].strip() == '':
-            print("Registration No. is BLANK in the excel file !")
+        if not data['registration'] or data['registration'].strip() == '':
+            logger.info("Registration No. is BLANK in the excel file !")
             row[config['sheets_config'][sheetname]
                 ['status_index']].value = "Registration No. is BLANK !"
             row[config['sheets_config'][sheetname]
@@ -265,29 +317,29 @@ def process_sheet_engr(wb, sheetname, orig_filename, config):
             count = count + 1
             continue
 
-        registration_no = data['Registration']
-        print(f"Feetching Registration info of {registration_no}:")
+        registration_no = data['registration']
+        logger.info(f"Feetching Registration info of {registration_no}:")
         reg_status = query_engr_registration(registration_no, driver)
 
         if reg_status:
-            print("Registration info found!")
+            logger.info("Registration info found!")
 
             name, company, date_joined, job_type, status, date_registered = reg_status
 
             # lic_class, _, _, lic_status = lic_statuses[0]
-            print(f"\tName: {name}")
-            print(f"\tCompany: {company}")
-            print(f"\tDate Joined: {date_joined}")
-            print(f"\tType: {job_type}")
-            print(f"\tStatus: {status}")
-            print(f"\tDate Registered: {date_registered}")
+            logger.info(f"\tName: {name}")
+            logger.info(f"\tCompany: {company}")
+            logger.info(f"\tDate Joined: {date_joined}")
+            logger.info(f"\tType: {job_type}")
+            logger.info(f"\tStatus: {status}")
+            logger.info(f"\tDate Registered: {date_registered}")
 
             row[config['sheets_config'][sheetname]['status_index']
                 ].value = status.strip().title()
             row[config['sheets_config'][sheetname]
                 ['last_checked_index']].value = datetime.now().date()
         else:
-            print("Registration info not found in online register !")
+            logger.info("Registration info not found in online register !")
             row[config['sheets_config'][sheetname]
                 ['status_index']].value = "Missing in Register"
             row[config['sheets_config'][sheetname]
@@ -300,31 +352,40 @@ def process_sheet_qbcc(wb, sheetname, orig_filename, config):
     if not 'qbcc' in sheetname.lower():
         return
 
-    print("Processing Architects Tab <QBCC>...")
+    logger.info("Processing Architects Tab <QBCC>...")
 
     sheet = wb[sheetname]
 
     count = 0
-    idx = 0
-    for row, data in enum_rows(sheet):
-        idx = idx + 1
-        print(f"Processing Line #L{idx}")
+    for idx, (row, d) in enumerate(enum_rows(sheet)):
+        data = {k.lower():v for k,v in d.items()}
+        
+            
+        last_checked = row[config['sheets_config'][sheetname]['last_checked_index']
+            ].value
+        
+        if last_checked and isinstance(last_checked, datetime) and last_checked.date() >= datetime.now().date():
+            continue
+        
+        logger.info(f"Processing Line #{idx + 1}")
         if count > 0 and (count % config['numrec_before_save']) == 0:
-            print("===============================================\n \
+            logger.info("===============================================\n \
                 Saving progress to excel file...\n==================================")
             wb.save(orig_filename)
 
         if not 'licence number' in data:
-            print("License No. Column not found !")
+            logger.info("License No. Column not found !")
             row[config['sheets_config'][sheetname]['status_index']
                 ].value = "No License Number Column found!"
             row[config['sheets_config'][sheetname]['last_checked_index']
                 ].value = datetime.now().date()
             count = count + 1
             continue
+        
+        
 
         if not data['licence number'] or data['licence number'].strip() == '':
-            print("License No. is BLANK in the excel file !")
+            logger.info("License No. is BLANK in the excel file !")
             row[config['sheets_config'][sheetname]['status_index']
                 ].value = "Licens No is BLANK !"
             row[config['sheets_config'][sheetname]['last_checked_index']
@@ -333,21 +394,21 @@ def process_sheet_qbcc(wb, sheetname, orig_filename, config):
             continue
 
         license_no = data['licence number']
-        print(f"Feetching License info of {license_no}:")
+        logger.info(f"Feetching License info of {license_no}:")
         lic_statuses = list(query_license(license_no))
 
         if len(lic_statuses) > 0:
-            print("License info found!")
+            logger.info("License info found!")
             lic_class, _, _, lic_status = lic_statuses[0]
-            print(f"\tLicense Class: {lic_class}")
-            print(f"\tStatus: {lic_status}")
+            logger.info(f"\tLicense Class: {lic_class}")
+            logger.info(f"\tStatus: {lic_status}")
 
             row[config['sheets_config'][sheetname]['status_index']
                 ].value = lic_status.title().strip()
             row[config['sheets_config'][sheetname]['last_checked_index']
                 ].value = datetime.now().date()
         else:
-            print("License not found in online register !")
+            logger.info("License not found in online register !")
             row[config['sheets_config'][sheetname]
                 ['status_index']].value = "Missing in Register"
             row[config['sheets_config'][sheetname]
@@ -358,14 +419,14 @@ def process_sheet_qbcc(wb, sheetname, orig_filename, config):
 
 def enum_rows(sheet):
     # link = sheet['A1'].value
-    # print(type(link))
+    # logger.info(type(link))
     # row_start_index = None
     # if link:
     #     for i in range(20):
 
     #         if str(sheet['A%d' % (i + 1, )].value).lower() == 'surname' or str(sheet['A%d' % (i + 1, )].value).lower() == 'sur name':
     #             row_start_index = i + 1
-    #             print(f"Data Row Start Index { row_start_index}")
+    #             logger.info(f"Data Row Start Index { row_start_index}")
     #             break
 
     #     if row_start_index:
@@ -375,7 +436,7 @@ def enum_rows(sheet):
 
     for i, r in enumerate(sheet.rows):
 
-        print(f"Processing Line # {i+1}...")
+        logger.info(f"Processing Line # {i+1}...")
 
         values = [str(c.value).strip() for c in r]
 
@@ -406,12 +467,6 @@ def read_config():
 
 if __name__ == "__main__":
 
-    # with open('./result.html', 'rt') as fp:
-    #     for license_class, _, _, status in parse_response(fp.read()):
-    #         pass
-
-    # exit(0)
-
     parser = argparse.ArgumentParser()
     parser.add_argument("input")
     parser.add_argument("--qbcc", action='store_true')
@@ -420,18 +475,22 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    if not os.path.isfile(args.input):
+        logger.info("ERROR: Cannot open input file {}!".format(args.input))
+        exit(1)
+        
     try:
         wb = openpyxl.load_workbook(args.input)
 
-        print(f"Found {len(wb.sheetnames)} sheets:")
-        print('\n'.join([f'\t{s}' for s in wb.sheetnames]))
+        logger.info(f"Found {len(wb.sheetnames)} sheets:")
+        logger.info('\n'.join([f'\t{s}' for s in wb.sheetnames]))
 
         config = read_config()
 
         for sheetname in wb.sheetnames:
             for filtsheet in config["sheets_config"].keys():
-                if filtsheet.lower() == sheetname.lower():
-                    print(f"Processing {sheetname}")
+                if filtsheet.lower() in sheetname.lower():
+                    logger.info(f"Processing {sheetname}")
 
                     if args.qbcc:
                         process_sheet_qbcc(wb, sheetname, args.input, config)
@@ -444,6 +503,4 @@ if __name__ == "__main__":
                         process_sheet_engr(wb, sheetname, args.input, config)
 
     except Exception as e:
-        print(e)
-    finally:
-        wb.close()
+        logger.exception(e)

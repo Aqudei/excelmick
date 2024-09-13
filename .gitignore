@@ -2,3 +2,5 @@ Competent person register and naming*
 *.exe
 venv/
 data/
+*.xlsx
+debug.log
