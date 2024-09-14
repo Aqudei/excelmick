@@ -1,3 +1,4 @@
+import os
 import time
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
@@ -16,9 +17,10 @@ from selenium.webdriver import ChromeOptions
 from seleniumrequests import Chrome
 import logging
 import re
+from prrocessors.qbcc import QBCCProcessor
 
 # Create a custom logger
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('micklogger')
 logger.setLevel(logging.DEBUG)  # Set the overall logging level
 
 # Create handlers
@@ -37,7 +39,6 @@ file_handler.setFormatter(formatter)
 # Add handlers to the logger
 logger.addHandler(console_handler)
 logger.addHandler(file_handler)
-
 
 session = requests.Session()
 session.headers.update(
@@ -624,6 +625,13 @@ def read_config():
     return conf
 
 
+def setup_processors(wb,args, config):
+    qbcc_proc = QBCCProcessor(wb,args,config)
+    
+    return [
+        qbcc_proc
+    ]
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("input")
@@ -639,12 +647,13 @@ if __name__ == "__main__":
         exit(1)
         
     try:
+        config = read_config()
+
         wb = openpyxl.load_workbook(args.input)
+        processors = setup_processors(wb,args, config)
 
         logger.info(f"Found {len(wb.sheetnames)} sheets:")
         logger.info("\n".join([f"\t{s}" for s in wb.sheetnames]))
-
-        config = read_config()
 
         
         for sheetname in wb.sheetnames:
@@ -653,17 +662,21 @@ if __name__ == "__main__":
                     logger.info(f"Processing {sheetname}")
                     sheet_config = config["sheets_config"][sheetname]
                     
-                    if args.qbcc:
-                        process_sheet_qbcc(wb, sheetname, args.input, config, sheet_config)
+                    
+                    for processor in processors:
+                        processor.process(sheetname, args.input, config, sheet_config)
+                    
+                    # if args.qbcc:
+                    #     process_sheet_qbcc(wb, sheetname, args.input, config, sheet_config)
 
-                    if args.arch:
-                        process_sheet_arch(wb, sheetname, args.input, config, sheet_config)
+                    # if args.arch:
+                    #     process_sheet_arch(wb, sheetname, args.input, config, sheet_config)
 
-                    if args.engr:
-                        process_sheet_engr(wb, sheetname, args.input, config, sheet_config)
+                    # if args.engr:
+                    #     process_sheet_engr(wb, sheetname, args.input, config, sheet_config)
                         
-                    if args.surv:
-                        process_sheet_surveyor(wb, sheetname, args.input, config, sheet_config)
+                    # if args.surv:
+                    #     process_sheet_surveyor(wb, sheetname, args.input, config, sheet_config)
         
         logger.info(f"Process done. Saving to {args.input}")
         wb.save(args.input)
@@ -671,4 +684,5 @@ if __name__ == "__main__":
     except Exception as e:
         logger.exception(e)
     finally:
-        wb.close()
+        if wb:
+            wb.close()
