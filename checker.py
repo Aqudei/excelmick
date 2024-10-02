@@ -16,6 +16,9 @@ from selenium.webdriver import ChromeOptions
 from seleniumrequests import Chrome
 import logging
 import re
+import os
+import urllib.parse
+from functools import partial
 
 # Create a custom logger
 logger = logging.getLogger(__name__)
@@ -38,7 +41,6 @@ file_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 logger.addHandler(file_handler)
 
-
 session = requests.Session()
 session.headers.update(
     {
@@ -53,8 +55,24 @@ session.headers.update(
     }
 )
 
+def enum_rows(sheet):
 
-def parse_response(html):
+    headers = list()
+
+    for r in sheet.rows:
+        values = [f"{c.value}".strip() for c in r]
+
+        if not headers:
+            headers = [v.lower() for v in values]
+            continue
+
+        item = dict()
+        for h, c in zip(headers, r):
+            item[h] = f"{c.value}".strip() if c else ""
+
+        yield r, item
+
+def parse_qbcc_response(html):
     soup = BeautifulSoup(html, "html.parser")
 
     business_name_element = soup.select_one(
@@ -140,7 +158,8 @@ def query_surveyor_license(search_text):
     return parse_surveyor_response(response.text)
 
 
-def query_license(license_no):
+def query_qbcc_license(license_no):
+    
     session.get('https://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/SearchBSALicenseeContent.aspx')
 
     license_no = license_no.strip("\r\n\t ")
@@ -154,9 +173,28 @@ def query_license(license_no):
         "FromPage": "SearchContr",
     }
     response = requests.get(url)
-    for r in parse_response(response.text):
+    for r in parse_qbcc_response(response.text):
         yield r
+
+
+def query_qbcc_certifier_license(license_no):
+    
+    session.get('https://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/SearchBuildingCertifierContent.aspx')
+
+    license_no = license_no.strip("\r\n\t ")
+    url = f"https://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/ShowDetailResultContent.aspx"
+    params = {
+        "LicNO": f"{license_no}",
+        "licCat": "LIC",
+        "name": "",
+        "firstName": "",
+        "searchType": "Certifier",
+        "FromPage": "SearchContr",
+    }
         
+    response = session.get(url, params=params)
+    for r in parse_qbcc_response(response.text):
+        yield r
 
 
 def query_engr_registration(registration_no, driver: Chrome):
@@ -301,9 +339,11 @@ def query_arch_registration(registration_no, driver: Chrome):
         logger.info(e)
 
 
-def process_sheet_arch(wb, sheetname, orig_filename, config):
-
-    if not "architects" in sheetname.lower():
+def process_sheet_arch(wb, sheetname, args, config,sheet_config):
+    
+    orig_filename = args.input
+    
+    if not "architects" in sheetname.lower() or not args.arch:
         return
 
     logger.info("Processing Architects Tab...")
@@ -382,9 +422,10 @@ def process_sheet_arch(wb, sheetname, orig_filename, config):
         count = count + 1
 
 
-def process_sheet_engr(wb, sheetname, orig_filename, config):
-
-    if not "engineers" in sheetname.lower():
+def process_sheet_engr(wb, sheetname, orig_filename, config, sheet_config):
+    orig_filename = args.input
+        
+    if not all(keyword in sheetname.lower() for keyword in ["engineers"]) or not args.engr:
         return
 
     logger.info("Processing Engineers Tab...")
@@ -477,9 +518,12 @@ def handle_surveyor_license_query(row, search_text, sheet_config):
         update_license_status(row, "License Not Found", sheet_config)
         return False
 
-def process_sheet_surveyor(wb, sheetname, orig_filename, config, sheet_config):
-    if not "surveyor" in sheetname.lower():
+def process_sheet_surveyor(wb, sheetname, args, config, sheet_config):
+    orig_filename = args.input
+    
+    if not "surveyor" in sheetname.lower() or not args.surv:
         return
+    
     logger.info("Processing Surveyor Tab: {}...".format(sheetname))
     session.headers.clear()
     session.headers.update({
@@ -528,17 +572,132 @@ def should_skip_row(row, sheet_config):
     return (last_date_checked and isinstance(last_date_checked, datetime) 
             and last_date_checked.date() >= datetime.now().date())
 
-def process_sheet_qbcc(wb, sheetname, orig_filename, config, sheet_config):
-    if not "qbcc" in sheetname.lower():
+
+def query_pool_safety_license(lic_no):
+    default_headers = {
+        'accept': '*/*',
+        'accept-language': 'en-US,en;q=0.9',
+        'cache-control': 'no-cache',
+        'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'origin': 'https://my.qbcc.qld.gov.au',
+        'pragma': 'no-cache',
+        'priority': 'u=1, i',
+        'referer': 'https://my.qbcc.qld.gov.au/s/pool-safety-inspector-search',
+        'sec-ch-ua': '"Brave";v="129", "Not=A?Brand";v="8", "Chromium";v="129"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-origin',
+        'sec-gpc': '1',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+        # 'x-sfdc-page-scope-id': '3bdc58c4-042b-42d8-8bcd-b875c8aa3bfb',
+        # 'x-sfdc-request-id': '415150000004b0f99f',
+    }
+    
+    s = requests.Session()
+    response = s.get("https://my.qbcc.qld.gov.au/s/pool-safety-inspector-search")
+    
+    cookies = s.cookies.get_dict()
+    context = cookies.get("renderCtx")
+    context_decoded = json.loads(urllib.parse.unquote(context))
+    sfdc_req_id = response.headers.get("x-sfdc-request-id")
+    x_sfdc_page_scope_id = context_decoded.get('pageId')
+    
+    s.headers.update(default_headers)
+    s.headers.update({
+        #"x-request-id":req_id,
+        "X-Sfdc-Request-Id":sfdc_req_id,
+        "X-Sfdc-Page-Scope-Id":x_sfdc_page_scope_id
+    })
+    url = 'https://my.qbcc.qld.gov.au/s/sfsites/aura?other.PSISearch.searchInspectors=1'
+    
+    data = {
+        'message': '{"actions":[{"id":"175;a","descriptor":"apex://PSISearchController/ACTION$searchInspectors","callingDescriptor":"markup://c:PSI_Search","params":{"searchBy":"licence","firstName":"","lastName":"","businessName":"","licenceNumber":"%s","distanceInKm":5,"batchSize":1000,"offset":0}}]}' % (lic_no,),
+        'aura.context': '{"mode":"PROD","fwuid":"eGx3MHlRT1lEMUpQaWVxbGRUM1h0Z2hZX25NdHFVdGpDN3BnWlROY1ZGT3cyNTAuOC40LTYuNC41","app":"siteforce:communityApp","loaded":{"APPLICATION@markup://siteforce:communityApp":"wi0I2YUoyrm6Lo80fhxdzA","COMPONENT@markup://instrumentation:o11ySecondaryLoader":"1JitVv-ZC5qlK6HkuofJqQ"},"dn":[],"globals":{},"uad":false}',
+        'aura.pageURI': '/s/pool-safety-inspector-search',
+        'aura.token': 'null',
+    }
+    
+    response = s.post(url,data=data)
+
+    results = response.json()['actions'][0]['returnValue']
+    if not results or len(results)<=0:
+        return
+    
+    results0 = results[0]
+    expiry_date = datetime.strptime(results0['expiryDate'], "%Y-%m-%d")
+    if datetime.now() > expiry_date:
+        results0['expired'] = True
+        
+    return results0
+    
+def process_sheet_qbcc_pool_safety(wb, sheetname, args, config, sheet_config):
+    orig_filename = args.input
+    
+    if not all(keyword in sheetname.lower() for keyword in ["qbcc", "pool", "safety"]) or not args.qbcc:
         return
 
-    logger.info("Processing Architects Tab <QBCC>...")
+    logger.info("Processing QBCC Pool Safety Tab <QBCC>...")
+    sheet = wb[sheetname]
+    orig_filename = args.input
+    save_interval = config["numrec_before_save"]
+    
+    for count, (row, data) in enumerate(enum_rows(sheet), start=1):
+        logger.info(f"Processing Line #{count}")
+        
+        if count % save_interval == 0:
+            logger.info("Saving progress to excel file...")
+            wb.save(orig_filename)
+
+        license_no = data.get("licence number", "").strip()
+                # Skip rows with a recent "last checked" date
+        
+        if not license_no:
+            message = "License No. Column not found!" if "licence number" not in data else "License No is BLANK !"
+            logger.info(message)
+            row[sheet_config["status_index"]].value = message
+            row[sheet_config["last_checked_index"]].value = datetime.now().date()
+            continue
+        
+        if should_skip_row(row, sheet_config):
+            continue
+        
+        logger.info(f"Fetching License info of {license_no}:")
+        lic_status = query_pool_safety_license(license_no)
+        if lic_status:
+            expired = lic_status.get('expired',False)
+            
+            if expired:
+                row[sheet_config["status_index"]].value = "License Expired"
+            else:
+                row[sheet_config["status_index"]].value = "Active"
+        else:
+            logger.info("License not found in online register!")
+            row[sheet_config["status_index"]].value = "Missing in Register"
+        
+        row[sheet_config["last_checked_index"]].value = datetime.now().date()
+    
+    wb.save(orig_filename)
+        
+        
+                
+def process_sheet_qbcc_individual(wb, sheetname, args, config, sheet_config, license_querier=query_qbcc_license, keywords=["qbcc", "individual"]):
+    orig_filename = args.input
+    
+    if not all(keyword in sheetname.lower() for keyword in keywords) or not args.qbcc:
+        return
+
+    logger.info("Processing QBCC Individual...")
 
     sheet = wb[sheetname]
     count = 0
     
     for idx, (row, data) in enumerate(enum_rows(sheet)):
         logger.info(f"Processing Line #{idx + 1}")
+        
+        if should_skip_row(row,sheet_config):
+            continue
         
         if count > 0 and (count % config["numrec_before_save"]) == 0:
             logger.info(
@@ -557,8 +716,6 @@ def process_sheet_qbcc(wb, sheetname, orig_filename, config, sheet_config):
             )
             count = count + 1
             continue
-        
-        
 
         if not data["licence number"] or data["licence number"].strip() == "":
             logger.info("License No. is BLANK in the excel file !")
@@ -573,7 +730,7 @@ def process_sheet_qbcc(wb, sheetname, orig_filename, config, sheet_config):
 
         license_no = data["licence number"]
         logger.info(f"Fetching License info of {license_no}:")
-        lic_statuses = list(query_license(license_no))
+        lic_statuses = list(license_querier(license_no))
 
         if len(lic_statuses) > 0:
             logger.info("License info found!")
@@ -598,24 +755,6 @@ def process_sheet_qbcc(wb, sheetname, orig_filename, config, sheet_config):
 
         count = count + 1
 
-
-def enum_rows(sheet):
-
-    headers = list()
-
-    for r in sheet.rows:
-        values = [f"{c.value}".strip() for c in r]
-
-        if not headers:
-            headers = [v.lower() for v in values]
-            continue
-
-        item = dict()
-        for h, c in zip(headers, r):
-            item[h] = f"{c.value}".strip() if c else ""
-
-        yield r, item
-
 def read_config():
 
     with open("./config.json", "rt", errors="ignore") as fp:
@@ -633,7 +772,8 @@ if __name__ == "__main__":
     parser.add_argument("--surv", action="store_true")
 
     args = parser.parse_args()
-
+    
+    
     if not os.path.isfile(args.input):
         logger.info("ERROR: Cannot open input file {}!".format(args.input))
         exit(1)
@@ -645,7 +785,18 @@ if __name__ == "__main__":
         logger.info("\n".join([f"\t{s}" for s in wb.sheetnames]))
 
         config = read_config()
+        process_qbcc_certifier = partial(process_sheet_qbcc_individual, license_querier=query_qbcc_certifier_license,keywords=['qbcc','certifier'])
+        process_qbcc_company = partial(process_sheet_qbcc_individual,keywords=['qbcc','company'])
 
+        processors = [
+            process_sheet_qbcc_individual,
+            process_qbcc_company,
+            process_qbcc_certifier,
+            process_sheet_qbcc_pool_safety
+            # process_sheet_arch,
+            # process_sheet_engr,
+            # process_sheet_surveyor
+        ]
         
         for sheetname in wb.sheetnames:
             for sheetname_filter in config["sheets_config"].keys():
@@ -653,18 +804,10 @@ if __name__ == "__main__":
                     logger.info(f"Processing {sheetname}")
                     sheet_config = config["sheets_config"][sheetname]
                     
-                    if args.qbcc:
-                        process_sheet_qbcc(wb, sheetname, args.input, config, sheet_config)
-
-                    if args.arch:
-                        process_sheet_arch(wb, sheetname, args.input, config, sheet_config)
-
-                    if args.engr:
-                        process_sheet_engr(wb, sheetname, args.input, config, sheet_config)
-                        
-                    if args.surv:
-                        process_sheet_surveyor(wb, sheetname, args.input, config, sheet_config)
-        
+                    
+                    for processor in processors:
+                        processor(wb, sheetname, args, config, sheet_config)
+                                
         logger.info(f"Process done. Saving to {args.input}")
         wb.save(args.input)
         
