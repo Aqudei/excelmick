@@ -19,7 +19,13 @@ import re
 import os
 import urllib.parse
 from functools import partial
-
+import yaml
+try:
+    from yaml import CLoader as Loader, CDumper as Dumper
+except ImportError:
+    from yaml import Loader, Dumper
+    
+    
 # Create a custom logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)  # Set the overall logging level
@@ -172,7 +178,7 @@ def query_qbcc_license(license_no):
         "searchType": "Contractor",
         "FromPage": "SearchContr",
     }
-    response = requests.get(url)
+    response = requests.get(url, params=params)
     for r in parse_qbcc_response(response.text):
         yield r
 
@@ -546,7 +552,6 @@ def process_sheet_surveyor(wb, sheetname, args, config, sheet_config):
             )
             wb.save(orig_filename)  
         
-        logger.info("Surveyor License | Processing Line # {}".format(idx+1))
         # Skip rows with a recent "last checked" date
         if should_skip_row(row, sheet_config):
             continue
@@ -568,6 +573,7 @@ def process_sheet_surveyor(wb, sheetname, args, config, sheet_config):
 
 def should_skip_row(row, sheet_config):
     """Check if the row should be skipped based on last checked date."""
+    
     last_date_checked = row[sheet_config['last_checked_index']].value
     return (last_date_checked and isinstance(last_date_checked, datetime) 
             and last_date_checked.date() >= datetime.now().date())
@@ -684,7 +690,6 @@ def process_sheet_qbcc_pool_safety(wb, sheetname, args, config, sheet_config):
                 
 def process_sheet_qbcc_individual(wb, sheetname, args, config, sheet_config, license_querier=query_qbcc_license, keywords=["qbcc", "individual"]):
     orig_filename = args.input
-    
     if not all(keyword in sheetname.lower() for keyword in keywords) or not args.qbcc:
         return
 
@@ -731,7 +736,6 @@ def process_sheet_qbcc_individual(wb, sheetname, args, config, sheet_config, lic
         license_no = data["licence number"]
         logger.info(f"Fetching License info of {license_no}:")
         lic_statuses = list(license_querier(license_no))
-
         if len(lic_statuses) > 0:
             logger.info("License info found!")
             lic_class, _, _, lic_status = lic_statuses[0]
@@ -757,8 +761,8 @@ def process_sheet_qbcc_individual(wb, sheetname, args, config, sheet_config, lic
 
 def read_config():
 
-    with open("./config.json", "rt", errors="ignore") as fp:
-        conf = json.loads(fp.read())
+    with open("./config.yml", "rt", errors="ignore") as fp:
+        conf = yaml.load(fp,Loader=Loader)
 
     return conf
 
@@ -801,7 +805,7 @@ if __name__ == "__main__":
         for sheetname in wb.sheetnames:
             for sheetname_filter in config["sheets_config"].keys():
                 if sheetname_filter.lower() == sheetname.lower():
-                    logger.info(f"Processing {sheetname}")
+                    logger.info(f"Processing SHEET: {sheetname}")
                     sheet_config = config["sheets_config"][sheetname]
                     
                     
