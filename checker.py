@@ -286,7 +286,7 @@ def query_engr_registration(registration_no, driver: Chrome):
 
 def query_arch_registration(registration_no, driver: Chrome):
     try:
-        url1 = "https://www.boaq.qld.gov.au/BOAQ/Search_Register/BOAQ/Search_Register/Architect_Search.aspx"
+        url1 = "https://www.boaq.qld.gov.au/Web/Consumers/Search_the_Register/Web/Architect_Search.aspx?hkey=f493b110-1ad9-4ec8-a830-f9a1f70e16b5"
         driver.get(url1)
         element = WebDriverWait(driver, 16).until(
             EC.presence_of_element_located(
@@ -315,29 +315,29 @@ def query_arch_registration(registration_no, driver: Chrome):
             )
         )
         registration_no = element.get_attribute("href").split("=")[1]
-        url = f"https://www.boaq.qld.gov.au/Shared_Content/ContactManagement/Profile.aspx?ID={registration_no}"
+        url = f"https://www.boaq.qld.gov.au/Party.aspx?ID={registration_no}"
         response = driver.request("GET", url)
         soup = BeautifulSoup(response.text, "html.parser")
         parts = [
             p.text.strip("\r\n\t ") for p in soup.select(".PanelFieldValue > span")
         ]
         logger.info(f"Num Parts: {len(parts)}")
-
         if len(parts) == 12:
             name = parts[0]
             company = parts[1]
-            date_joined = parts[2]
-            job_type = parts[3]
-            status = parts[4]
-            date_registered = parts[5]
+            job_type = parts[2]
+            date_joined = parts[4]
+            status = parts[3]
+            date_registered = parts[4]
 
             return name, company, date_joined, job_type, status, date_registered
         elif len(parts) == 11:
+
             name = parts[0]
-            date_joined = parts[1]
-            job_type = parts[2]
-            status = parts[3]
-            date_registered = parts[4]
+            date_joined = parts[3]
+            job_type = parts[1]
+            status = parts[2]
+            date_registered = parts[3]
 
             return name, None, date_joined, job_type, status, date_registered
 
@@ -363,7 +363,10 @@ def process_sheet_arch(wb, sheetname, args, config,sheet_config):
     driver = Chrome(options=options)
 
     for idx, (row, data) in enumerate(enum_rows(sheet)):
-
+        
+        if should_skip_row(row,sheet_config):
+            continue
+        
         if count > 0 and (count % config["numrec_before_save"]) == 0:
             logger.info(
                 "===============================================\n \
@@ -371,30 +374,10 @@ def process_sheet_arch(wb, sheetname, args, config,sheet_config):
             )
             wb.save(orig_filename)
 
-        if not "Registration" in data:
-            logger.info("Registration No. Column not found !")
-            row[config["sheets_config"][sheetname]["status_index"]].value = (
-                "No Registration Number Column found!"
-            )
-            row[config["sheets_config"][sheetname]["last_checked_index"]].value = (
-                datetime.now().date()
-            )
-            count = count + 1
-            continue
-
-        if not data["Registration"] or data["Registration"].strip() == "":
-            logger.info("Registration No. is BLANK in the excel file !")
-            row[config["sheets_config"][sheetname]["status_index"]].value = (
-                "Registration No. is BLANK !"
-            )
-            row[config["sheets_config"][sheetname]["last_checked_index"]].value = (
-                datetime.now().date()
-            )
-            count = count + 1
-            continue
-
-        registration_no = data["Registration"]
-        logger.info(f"Feetching Registration info of {registration_no}:")
+       
+        registration_no = str(row[sheet_config['license_index']].value or '')
+        
+        logger.info(f"Fetching Registration info of {registration_no}:")
         reg_status = query_arch_registration(registration_no, driver)
 
         if reg_status:
@@ -704,12 +687,7 @@ def process_sheet_qbcc_individual(wb, sheetname, args, config, sheet_config, lic
         if should_skip_row(row,sheet_config):
             continue
         
-        if count > 0 and (count % config["numrec_before_save"]) == 0:
-            logger.info(
-                "===============================================\n \
-                Saving progress to excel file...\n=================================="
-            )
-            wb.save(orig_filename)
+        try_save(wb, config, orig_filename, count)
 
         if not "licence number" in data:
             logger.info("License No. Column not found !")
@@ -759,6 +737,14 @@ def process_sheet_qbcc_individual(wb, sheetname, args, config, sheet_config, lic
 
         count = count + 1
 
+def try_save(wb, config, orig_filename, count):
+    if count > 0 and (count % config["numrec_before_save"]) == 0:
+        logger.info(
+                "===============================================\n \
+                Saving progress to excel file...\n=================================="
+            )
+        wb.save(orig_filename)
+
 def read_config():
 
     with open("./config.yml", "rt", errors="ignore") as fp:
@@ -776,7 +762,6 @@ if __name__ == "__main__":
     parser.add_argument("--surv", action="store_true")
 
     args = parser.parse_args()
-    
     
     if not os.path.isfile(args.input):
         logger.info("ERROR: Cannot open input file {}!".format(args.input))
@@ -796,8 +781,8 @@ if __name__ == "__main__":
             process_sheet_qbcc_individual,
             process_qbcc_company,
             process_qbcc_certifier,
-            process_sheet_qbcc_pool_safety
-            # process_sheet_arch,
+            process_sheet_qbcc_pool_safety,
+            process_sheet_arch,
             # process_sheet_engr,
             # process_sheet_surveyor
         ]
