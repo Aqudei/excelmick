@@ -23,4 +23,15 @@ sheets_config:
     license_index: 2
     status_index: 6
     last_checked_index: 7
+  "11. Surveyor":
+    first_name_index: 1
+    surname_index: 0
+    company_index: 2
+    status_index: 5
+    last_checked_index: 6
 numrec_before_save: 15
+idle_time: 5
+hotfolder: ./hotfolder
+processing: ./processing
+done: ./done
+error: ./error

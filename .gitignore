@@ -5,4 +5,10 @@ data/
 *.xlsx
 debug.log
 app.log
+
+# Directories
 inputs/
+hotfolder/
+processing/
+error/
+done/

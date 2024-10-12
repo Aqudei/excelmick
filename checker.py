@@ -1,3 +1,4 @@
+import shutil
 import time
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
@@ -20,6 +21,8 @@ import os
 import urllib.parse
 from functools import partial
 import yaml
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
@@ -203,9 +206,9 @@ def query_qbcc_certifier_license(license_no):
         yield r
 
 
-def query_engr_registration(registration_no, driver: Chrome):
+def query_engr_registration(license_number, driver: Chrome):
     try:
-        url1 = "https://portal.bpeq.qld.gov.au/BPEQPortal/Search_for_a_RPEQ/BPEQPortal/Engineer_Search.aspx"
+        url1 = "https://portal.bpeq.qld.gov.au/BPEQPortal/RPEQ_Directory.aspx"
         driver.get(url1)
         element = WebDriverWait(driver, 16).until(
             EC.presence_of_element_located(
@@ -215,7 +218,7 @@ def query_engr_registration(registration_no, driver: Chrome):
                 )
             )
         )
-        element.send_keys(registration_no)
+        element.send_keys(license_number)
         element = WebDriverWait(driver, 16).until(
             EC.presence_of_element_located(
                 (
@@ -242,49 +245,28 @@ def query_engr_registration(registration_no, driver: Chrome):
             p.text.strip("\r\n\t ") for p in soup.select(".PanelFieldValue > span")
         ]
         logger.info(f"Num Parts: {len(parts)}")
+        
+        name = soup.title.text.strip("\r\n\t")
+        date_registered_from = parts[0]
+        status = parts[3]
+        date_registered_to = parts[4]
+        company = parts[5]
+        job_type = parts[1]
 
-        if len(parts) == 12:
-            name = parts[0]
-            company = parts[1]
-            date_joined = parts[2]
-            job_type = parts[3]
-            status = parts[4]
-            date_registered = parts[5]
-
-            return name, company, date_joined, job_type, status, date_registered
-        elif len(parts) == 11:
-            name = parts[0]
-            date_joined = parts[1]
-            job_type = parts[2]
-            status = parts[3]
-            date_registered = parts[4]
-
-            return name, None, date_joined, job_type, status, date_registered
-        elif len(parts) == 16:
-            name = parts[0]
-            company = parts[1]
-            date_joined = parts[2]
-            job_type = parts[3]
-            _ = parts[4]
-            status = parts[5]
-            date_registered = parts[6]
-
-            return name, company, date_joined, job_type, status, date_registered
-        elif len(parts) == 15:
-            name = parts[0]
-            date_joined = parts[1]
-            job_type = parts[2]
-            _ = parts[3]
-            status = parts[4]
-            date_registered = parts[5]
-
-            return name, None, date_joined, job_type, status, date_registered
-
+        return {
+            'name':name, 
+            'company':company, 
+            'date_registered_from':date_registered_from,
+            'job_type':job_type, 
+            'status':status,
+            'date_registered_to':date_registered_to
+        }
+        
     except Exception as e:
         logger.info(e)
 
 
-def query_arch_registration(registration_no, driver: Chrome):
+def query_arch_registration(license_number, driver: Chrome):
     try:
         url1 = "https://www.boaq.qld.gov.au/Web/Consumers/Search_the_Register/Web/Architect_Search.aspx?hkey=f493b110-1ad9-4ec8-a830-f9a1f70e16b5"
         driver.get(url1)
@@ -296,7 +278,7 @@ def query_arch_registration(registration_no, driver: Chrome):
                 )
             )
         )
-        element.send_keys(registration_no)
+        element.send_keys(license_number)
         element = WebDriverWait(driver, 16).until(
             EC.presence_of_element_located(
                 (
@@ -345,11 +327,9 @@ def query_arch_registration(registration_no, driver: Chrome):
         logger.info(e)
 
 
-def process_sheet_arch(wb, sheetname, args, config,sheet_config):
-    
-    orig_filename = args.input
-    
-    if not "architects" in sheetname.lower() or not args.arch:
+def process_sheet_arch(wb, sheetname, args, config,sheet_config,orig_filename):
+        
+    if not "architects" in sheetname.lower():
         return
 
     logger.info("Processing Architects Tab...")
@@ -393,28 +373,27 @@ def process_sheet_arch(wb, sheetname, args, config,sheet_config):
             logger.info(f"\tStatus: {status}")
             logger.info(f"\tDate Registered: {date_registered}")
 
-            row[config["sheets_config"][sheetname]["status_index"]].value = (
+            row[sheet_config["status_index"]].value = (
                 status.strip().title()
             )
-            row[config["sheets_config"][sheetname]["last_checked_index"]].value = (
+            row[sheet_config["last_checked_index"]].value = (
                 datetime.now().date()
             )
         else:
             logger.info("Registration info not found in online register !")
-            row[config["sheets_config"][sheetname]["status_index"]].value = (
+            row[sheet_config["status_index"]].value = (
                 "Missing in Register"
             )
-            row[config["sheets_config"][sheetname]["last_checked_index"]].value = (
+            row[sheet_config["last_checked_index"]].value = (
                 datetime.now().date()
             )
 
         count = count + 1
 
 
-def process_sheet_engr(wb, sheetname, orig_filename, config, sheet_config):
-    orig_filename = args.input
+def process_sheet_engr(wb, sheetname, args, config, sheet_config,orig_filename):
         
-    if not all(keyword in sheetname.lower() for keyword in ["engineers"]) or not args.engr:
+    if not all(keyword in sheetname.lower() for keyword in ["engineers"]):
         return
 
     logger.info("Processing Engineers Tab...")
@@ -436,57 +415,41 @@ def process_sheet_engr(wb, sheetname, orig_filename, config, sheet_config):
             )
             wb.save(orig_filename)
 
-        if not "Registration" in data:
-            logger.info("Registration No. Column not found !")
-            row[config["sheets_config"][sheetname]["status_index"]].value = (
-                "No Registration Number Column found!"
-            )
-            row[config["sheets_config"][sheetname]["last_checked_index"]].value = (
-                datetime.now().date()
-            )
-            count = count + 1
+        if should_skip_row(row,sheet_config):
             continue
-
-        if not data["Registration"] or data["Registration"].strip() == "":
-            logger.info("Registration No. is BLANK in the excel file !")
-            row[config["sheets_config"][sheetname]["status_index"]].value = (
-                "Registration No. is BLANK !"
-            )
-            row[config["sheets_config"][sheetname]["last_checked_index"]].value = (
-                datetime.now().date()
-            )
-            count = count + 1
-            continue
-
-        registration_no = data["Registration"]
-        logger.info(f"Feetching Registration info of {registration_no}:")
-        reg_status = query_engr_registration(registration_no, driver)
+        
+        license_number = str(row[sheet_config['license_index']].value or '')
+        logger.info(f"Fetching Registration info of {license_number}:")
+        reg_status = query_engr_registration(license_number, driver)
 
         if reg_status:
             logger.info("Registration info found!")
 
-            name, company, date_joined, job_type, status, date_registered = reg_status
-
+            # name, company, date_registered_from, job_type, status, date_registered = reg_status
+            # return name, company, date_registered_from, job_type, status, date_registered_to
             # lic_class, _, _, lic_status = lic_statuses[0]
-            logger.info(f"\tName: {name}")
-            logger.info(f"\tCompany: {company}")
-            logger.info(f"\tDate Joined: {date_joined}")
-            logger.info(f"\tType: {job_type}")
-            logger.info(f"\tStatus: {status}")
-            logger.info(f"\tDate Registered: {date_registered}")
+            
+            status = reg_status['status']
+            
+            logger.info(f"\tName: {reg_status['name']}")
+            logger.info(f"\tCompany: {reg_status['company']}")
+            logger.info(f"\tDate Registered From: {reg_status['date_registered_from']}")
+            logger.info(f"\tType: {reg_status['job_type']}")
+            logger.info(f"\tStatus: {reg_status['status']}")
+            logger.info(f"\tDate Registered To: {reg_status['date_registered_to']}")
 
-            row[config["sheets_config"][sheetname]["status_index"]].value = (
+            row[sheet_config["status_index"]].value = (
                 status.strip().title()
             )
-            row[config["sheets_config"][sheetname]["last_checked_index"]].value = (
+            row[sheet_config["last_checked_index"]].value = (
                 datetime.now().date()
             )
         else:
             logger.info("Registration info not found in online register !")
-            row[config["sheets_config"][sheetname]["status_index"]].value = (
+            row[sheet_config["status_index"]].value = (
                 "Missing in Register"
             )
-            row[config["sheets_config"][sheetname]["last_checked_index"]].value = (
+            row[sheet_config["last_checked_index"]].value = (
                 datetime.now().date()
             )
 
@@ -507,10 +470,9 @@ def handle_surveyor_license_query(row, search_text, sheet_config):
         update_license_status(row, "License Not Found", sheet_config)
         return False
 
-def process_sheet_surveyor(wb, sheetname, args, config, sheet_config):
-    orig_filename = args.input
-    
-    if not "surveyor" in sheetname.lower() or not args.surv:
+def process_sheet_surveyor(wb, sheetname, args, config, sheet_config,orig_filename):
+
+    if not "surveyor" in sheetname.lower():
         return
     
     logger.info("Processing Surveyor Tab: {}...".format(sheetname))
@@ -621,15 +583,13 @@ def query_pool_safety_license(lic_no):
         
     return results0
     
-def process_sheet_qbcc_pool_safety(wb, sheetname, args, config, sheet_config):
-    orig_filename = args.input
+def process_sheet_qbcc_pool_safety(wb, sheetname, args, config, sheet_config,orig_filename):
     
-    if not all(keyword in sheetname.lower() for keyword in ["qbcc", "pool", "safety"]) or not args.qbcc:
+    if not all(keyword in sheetname.lower() for keyword in ["qbcc", "pool", "safety"]):
         return
 
     logger.info("Processing QBCC Pool Safety Tab <QBCC>...")
     sheet = wb[sheetname]
-    orig_filename = args.input
     save_interval = config["numrec_before_save"]
     
     for count, (row, data) in enumerate(enum_rows(sheet), start=1):
@@ -671,9 +631,8 @@ def process_sheet_qbcc_pool_safety(wb, sheetname, args, config, sheet_config):
         
         
                 
-def process_sheet_qbcc_individual(wb, sheetname, args, config, sheet_config, license_querier=query_qbcc_license, keywords=["qbcc", "individual"]):
-    orig_filename = args.input
-    if not all(keyword in sheetname.lower() for keyword in keywords) or not args.qbcc:
+def process_sheet_qbcc_individual(wb, sheetname, args, config, sheet_config, orig_filename, license_querier=query_qbcc_license, keywords=["qbcc", "individual"]):
+    if not all(keyword in sheetname.lower() for keyword in keywords):
         return
 
     logger.info("Processing QBCC Individual...")
@@ -753,22 +712,11 @@ def read_config():
     return conf
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("input")
-    parser.add_argument("--qbcc", action="store_true")
-    parser.add_argument("--engr", action="store_true")
-    parser.add_argument("--arch", action="store_true")
-    parser.add_argument("--surv", action="store_true")
-
-    args = parser.parse_args()
+def process_workbook(filepath, args):
+    wb = None
     
-    if not os.path.isfile(args.input):
-        logger.info("ERROR: Cannot open input file {}!".format(args.input))
-        exit(1)
-        
     try:
-        wb = openpyxl.load_workbook(args.input)
+        wb = openpyxl.load_workbook(filepath)
 
         logger.info(f"Found {len(wb.sheetnames)} sheets:")
         logger.info("\n".join([f"\t{s}" for s in wb.sheetnames]))
@@ -783,8 +731,8 @@ if __name__ == "__main__":
             process_qbcc_certifier,
             process_sheet_qbcc_pool_safety,
             process_sheet_arch,
-            # process_sheet_engr,
-            # process_sheet_surveyor
+            process_sheet_engr,
+            process_sheet_surveyor
         ]
         
         for sheetname in wb.sheetnames:
@@ -795,12 +743,90 @@ if __name__ == "__main__":
                     
                     
                     for processor in processors:
-                        processor(wb, sheetname, args, config, sheet_config)
+                        processor(wb, sheetname, args, config, sheet_config, filepath)
                                 
-        logger.info(f"Process done. Saving to {args.input}")
-        wb.save(args.input)
+        logger.info(f"Process done. Saving to {filepath}")
+        wb.save(filepath)
         
     except Exception as e:
         logger.exception(e)
     finally:
-        wb.close()
+        if wb:
+            wb.close()
+
+
+class IdleFileHandler(FileSystemEventHandler):
+    def __init__(self, idle_time):
+        self.idle_time = idle_time
+        self.last_modified_time = {}
+
+
+    def on_created(self, event):
+        if not event.is_directory:
+            file_path = event.src_path
+            self.last_modified_time[file_path] = time.time()
+            print(f"New file added: {file_path}, waiting for it to become idle.")
+            
+    def on_modified(self, event):
+        if not event.is_directory:
+            file_path = event.src_path
+            self.last_modified_time[file_path] = time.time()
+            print(f"Detected modification on {file_path}, waiting for it to become idle.")
+
+    def process_if_idle(self, file_path, args, config):
+        # Wait until the file is idle
+        while True:
+            if file_path in self.last_modified_time:
+                time_since_modification = time.time() - self.last_modified_time[file_path]
+                if time_since_modification > self.idle_time:
+                    print(f"{file_path} is idle, processing...")
+                    
+                    final_path = os.path.join(config['processing'], os.path.basename(file_path)) 
+                    shutil.move(file_path, final_path)
+                    
+                    # Process the file here
+                    try:
+                        process_workbook(final_path, args)
+                        final_path = os.path.join(config['done'], os.path.basename(file_path)) 
+                        shutil.move(file_path, final_path)
+                    except Exception as e:
+                        logger.exception(e)
+                        final_path = os.path.join(config['error'], os.path.basename(file_path)) 
+                        shutil.move(file_path, final_path)
+                    break
+            time.sleep(1)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    # parser.add_argument("input")
+    # parser.add_argument("--qbcc", action="store_true")
+    # parser.add_argument("--engr", action="store_true")
+    # parser.add_argument("--arch", action="store_true")
+    # parser.add_argument("--surv", action="store_true")
+
+    args = parser.parse_args()
+    
+    # if not os.path.isfile(args.input):
+    #     logger.error("ERROR: Cannot open input file {}!".format(args.input))
+    #     exit(1)
+    
+    config = read_config()
+    
+    event_handler = IdleFileHandler(config.get('idle_time',5))
+    observer = Observer()
+    observer.schedule(event_handler, config['hotfolder'], recursive=False)
+    observer.start()
+
+    try:
+        print("Monitoring folder: <{}> for changes...".format(os.path.abspath(config['hotfolder'])))
+        while True:
+            # If a file has been modified, check if it's idle and process it
+            for file in event_handler.last_modified_time:
+                event_handler.process_if_idle(file, args,config)
+            time.sleep(1)
+    except KeyboardInterrupt:
+        observer.stop()
+
+    observer.join()
+    
+    
