@@ -1,20 +1,24 @@
+hotfolder: ./hotfolder
+processing: ./processing
+done: ./done
+error: ./error
 sheets_config:
-  # "2. QBCC - individual":
-  #   license_index: 2
-  #   status_index: 7
-  #   last_checked_index: 9
-  # "4.QBCC - Pool Safety Inspectors":
-  #   license_index: 2
-  #   status_index: 4
-  #   last_checked_index: 7
-  # "3. QBCC - company":
-  #   license_index: 0
-  #   status_index: 5
-  #   last_checked_index: 7
-  # "4. QBCC - certifier":
-  #   license_index: 2
-  #   status_index: 7
-  #   last_checked_index: 9
+  "2. QBCC - individual":
+    license_index: 2
+    status_index: 7
+    last_checked_index: 9
+  "4.QBCC - Pool Safety Inspectors":
+    license_index: 2
+    status_index: 4
+    last_checked_index: 7
+  "3. QBCC - company":
+    license_index: 0
+    status_index: 5
+    last_checked_index: 7
+  "4. QBCC - certifier":
+    license_index: 2
+    status_index: 7
+    last_checked_index: 9
   "5. Architects":
     license_index: 2
     status_index: 6
@@ -31,7 +35,3 @@ sheets_config:
     last_checked_index: 6
 numrec_before_save: 15
 idle_time: 5
-hotfolder: ./hotfolder
-processing: ./processing
-done: ./done
-error: ./error
