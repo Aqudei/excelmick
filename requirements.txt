@@ -1,7 +1,8 @@
-beautifulsoup4
-openpyxl
-pandas
-pytz
-selenium
-selenium-requests
-requests
+beautifulsoup4==4.12.3
+openpyxl==3.1.5
+pandas==2.2.2
+pytz==2024.2
+selenium-requests==2.0.4
+watchdog==5.0.3
+requests==2.32.3
+selenium==4.24.0
