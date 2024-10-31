@@ -358,7 +358,7 @@ def process_sheet_arch(wb, sheetname, args, config,sheet_config,orig_filename):
        
         registration_no = str(row[sheet_config['license_index']].value or '')
         
-        logger.info(f"Fetching Registration info of {registration_no}:")
+        logger.info("Fetching Registration info of %s:", registration_no)
         reg_status = query_arch_registration(registration_no, driver)
 
         if reg_status:
@@ -368,7 +368,7 @@ def process_sheet_arch(wb, sheetname, args, config,sheet_config,orig_filename):
 
             # lic_class, _, _, lic_status = lic_statuses[0]
             logger.info(f"\tName: {name}")
-            logger.info(f"\tCompany: {company}")
+            logger.info("\tCompany: %s",company)
             logger.info(f"\tDate Joined: {date_joined}")
             logger.info(f"\tType: {job_type}")
             logger.info(f"\tStatus: {status}")
@@ -784,18 +784,18 @@ class IdleFileHandler(FileSystemEventHandler):
                 if time_since_modification > self.idle_time:
                     print(f"{file_path} is idle, processing...")
                     
-                    final_path = os.path.join(config['processing'], os.path.basename(file_path)) 
-                    shutil.move(file_path, final_path)
+                    processing_path = os.path.join(config['processing'], os.path.basename(file_path)) 
+                    shutil.move(file_path, processing_path)
                     
                     # Process the file here
                     try:
-                        process_workbook(final_path, args)
-                        final_path = os.path.join(config['done'], os.path.basename(file_path)) 
-                        shutil.move(file_path, final_path)
+                        process_workbook(processing_path, args)
+                        done_path = os.path.join(config['done'], os.path.basename(file_path)) 
+                        shutil.move(processing_path, done_path)
                     except Exception as e:
                         logger.exception(e)
-                        final_path = os.path.join(config['error'], os.path.basename(file_path)) 
-                        shutil.move(file_path, final_path)
+                        error_path = os.path.join(config['error'], os.path.basename(file_path)) 
+                        shutil.move(processing_path, error_path)
                     break
             time.sleep(1)
             
