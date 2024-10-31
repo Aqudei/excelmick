@@ -339,6 +339,7 @@ def process_sheet_arch(wb, sheetname, args, config,sheet_config,orig_filename):
     count = 0
 
     options = ChromeOptions()
+    options.binary_location = './chrome-win64/chrome.exe'
     # options.add_argument("headless")
     driver = Chrome(options=options)
 
