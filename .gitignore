@@ -12,4 +12,5 @@ inputs/
 hotfolder/
 processing/
 error/
-done/ 
+done/
+chrome-win64
