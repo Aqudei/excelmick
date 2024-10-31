@@ -344,7 +344,7 @@ def process_sheet_arch(wb, sheetname, args, config,sheet_config,orig_filename):
 
     for idx, (row, data) in enumerate(enum_rows(sheet)):
         
-        if should_skip_row(row,sheet_config):
+        if should_skip_row(row,sheet_config, config):
             continue
         
         if count > 0 and (count % config["numrec_before_save"]) == 0:
@@ -415,7 +415,7 @@ def process_sheet_engr(wb, sheetname, args, config, sheet_config,orig_filename):
             )
             wb.save(orig_filename)
 
-        if should_skip_row(row,sheet_config):
+        if should_skip_row(row,sheet_config, config):
             continue
         
         license_number = str(row[sheet_config['license_index']].value or '')
@@ -498,7 +498,7 @@ def process_sheet_surveyor(wb, sheetname, args, config, sheet_config,orig_filena
             wb.save(orig_filename)  
         
         # Skip rows with a recent "last checked" date
-        if should_skip_row(row, sheet_config):
+        if should_skip_row(row, sheet_config, config):
             continue
         
         first_name = f"{row[sheet_config['first_name_index']].value or ''}".strip() 
@@ -516,13 +516,15 @@ def process_sheet_surveyor(wb, sheetname, args, config, sheet_config,orig_filena
             
         count += 1
 
-def should_skip_row(row, sheet_config):
+def should_skip_row(row, sheet_config,cfg):
     """Check if the row should be skipped based on last checked date."""
-    
     last_date_checked = row[sheet_config['last_checked_index']].value
-    return (last_date_checked and isinstance(last_date_checked, datetime) 
-            and last_date_checked.date() >= datetime.now().date())
-
+    if last_date_checked and isinstance(last_date_checked, datetime):
+        delta = datetime.now().date() - last_date_checked.date()
+        return delta.days >= cfg.get('skip_days',5)
+    else:
+        return  False
+        
 
 def query_pool_safety_license(lic_no):
     default_headers = {
@@ -609,7 +611,7 @@ def process_sheet_qbcc_pool_safety(wb, sheetname, args, config, sheet_config,ori
             row[sheet_config["last_checked_index"]].value = datetime.now().date()
             continue
         
-        if should_skip_row(row, sheet_config):
+        if should_skip_row(row, sheet_config, config):
             continue
         
         logger.info(f"Fetching License info of {license_no}:")
@@ -643,7 +645,7 @@ def process_sheet_qbcc_individual(wb, sheetname, args, config, sheet_config, ori
     for idx, (row, data) in enumerate(enum_rows(sheet)):
         logger.info(f"Processing Line #{idx + 1}")
         
-        if should_skip_row(row,sheet_config):
+        if should_skip_row(row,sheet_config, config):
             continue
         
         try_save(wb, config, orig_filename, count)

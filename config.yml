@@ -34,4 +34,5 @@ sheets_config:
     status_index: 5
     last_checked_index: 6
 numrec_before_save: 15
+skip_days : 5
 idle_time: 5
