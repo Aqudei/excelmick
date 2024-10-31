@@ -797,6 +797,20 @@ class IdleFileHandler(FileSystemEventHandler):
                         shutil.move(file_path, final_path)
                     break
             time.sleep(1)
+            
+
+def prep_dirs(config):
+
+    dirs = [
+       config.get('hotfolder'),
+       config.get('processing'),
+        config.get('done'),
+    config.get('error'),
+    ]
+
+    for d in dirs:
+        if d:
+            os.makedirs(d,exist_ok=True)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -813,6 +827,9 @@ if __name__ == "__main__":
     #     exit(1)
     
     config = read_config()
+    
+    
+    prep_dirs(config)
     
     event_handler = IdleFileHandler(config.get('idle_time',5))
     observer = Observer()
