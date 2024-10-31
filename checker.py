@@ -244,7 +244,7 @@ def query_engr_registration(license_number, driver: Chrome):
         parts = [
             p.text.strip("\r\n\t ") for p in soup.select(".PanelFieldValue > span")
         ]
-        logger.info(f"Num Parts: {len(parts)}")
+        logger.info("Num Parts: %d", len(parts))
         
         name = soup.title.text.strip("\r\n\t")
         date_registered_from = parts[0]
@@ -721,7 +721,7 @@ def process_workbook(filepath, args):
     try:
         wb = openpyxl.load_workbook(filepath)
 
-        logger.info(f"Found {len(wb.sheetnames)} sheets:")
+        logger.info("Found %d sheets.", len(wb.sheetnames))
         logger.info("\n".join([f"\t{s}" for s in wb.sheetnames]))
 
         config = read_config()
@@ -733,9 +733,9 @@ def process_workbook(filepath, args):
             process_qbcc_company,
             process_qbcc_certifier,
             process_sheet_qbcc_pool_safety,
-            process_sheet_arch,
-            process_sheet_engr,
-            process_sheet_surveyor
+            process_sheet_surveyor,
+            # process_sheet_arch,
+            # process_sheet_engr,
         ]
         
         for sheetname in wb.sheetnames:
@@ -772,30 +772,39 @@ class IdleFileHandler(FileSystemEventHandler):
             
     def on_modified(self, event):
         if not event.is_directory:
-            file_path = event.src_path
-            self.last_modified_time[file_path] = time.time()
-            print(f"Detected modification on {file_path}, waiting for it to become idle.")
+            pass
+    
+    def __move_file(self,src,dest):
+        """
+        docstring
+        """
+        try:
+            shutil.move(src, dest)
+        except:
+            pass
 
     def process_if_idle(self, file_path, args, config):
         # Wait until the file is idle
         while True:
-            if file_path in self.last_modified_time:
+            if file_path in self.last_modified_time and self.last_modified_time[file_path]:
                 time_since_modification = time.time() - self.last_modified_time[file_path]
                 if time_since_modification > self.idle_time:
                     print(f"{file_path} is idle, processing...")
-                    
+                    self.last_modified_time[file_path] = None
                     processing_path = os.path.join(config['processing'], os.path.basename(file_path)) 
-                    shutil.move(file_path, processing_path)
+                    self.__move_file(file_path,processing_path)
                     
                     # Process the file here
                     try:
                         process_workbook(processing_path, args)
                         done_path = os.path.join(config['done'], os.path.basename(file_path)) 
-                        shutil.move(processing_path, done_path)
+                        self.__move_file(processing_path, done_path)
                     except Exception as e:
                         logger.exception(e)
                         error_path = os.path.join(config['error'], os.path.basename(file_path)) 
-                        shutil.move(processing_path, error_path)
+                        self.__move_file(processing_path,error_path)
+                    
+                    
                     break
             time.sleep(1)
             
@@ -813,20 +822,11 @@ def prep_dirs(config):
         if d:
             os.makedirs(d,exist_ok=True)
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    # parser.add_argument("input")
-    # parser.add_argument("--qbcc", action="store_true")
-    # parser.add_argument("--engr", action="store_true")
-    # parser.add_argument("--arch", action="store_true")
-    # parser.add_argument("--surv", action="store_true")
 
-    args = parser.parse_args()
-    
-    # if not os.path.isfile(args.input):
-    #     logger.error("ERROR: Cannot open input file {}!".format(args.input))
-    #     exit(1)
-    
+def main(args):
+    """
+    docstring
+    """
     config = read_config()
     
     
@@ -838,15 +838,33 @@ if __name__ == "__main__":
     observer.start()
 
     try:
-        print("Monitoring folder: <{}> for changes...".format(os.path.abspath(config['hotfolder'])))
+        logger.info("Monitoring folder: <%s> for changes...",os.path.abspath(config['hotfolder']))
         while True:
             # If a file has been modified, check if it's idle and process it
             for file in event_handler.last_modified_time:
                 event_handler.process_if_idle(file, args,config)
+                        
             time.sleep(1)
     except KeyboardInterrupt:
         observer.stop()
 
     observer.join()
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    # parser.add_argument("input")
+    # parser.add_argument("--qbcc", action="store_true")
+    # parser.add_argument("--engr", action="store_true")
+    # parser.add_argument("--arch", action="store_true")
+    # parser.add_argument("--surv", action="store_true")
+
+    console_args = parser.parse_args()
+    main(console_args)
+    
+    # if not os.path.isfile(args.input):
+    #     logger.error("ERROR: Cannot open input file {}!".format(args.input))
+    #     exit(1)
+    
+
     
     
