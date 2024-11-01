@@ -378,12 +378,12 @@ def process_sheet_arch(wb, sheetname, args, config,sheet_config,orig_filename):
             name, company, date_joined, job_type, status, date_registered = reg_status
 
             # lic_class, _, _, lic_status = lic_statuses[0]
-            logger.info(f"\tName: {name}")
-            logger.info("\tCompany: %s",company)
-            logger.info(f"\tDate Joined: {date_joined}")
-            logger.info(f"\tType: {job_type}")
-            logger.info(f"\tStatus: {status}")
-            logger.info(f"\tDate Registered: {date_registered}")
+            logger.info("\tName: %s", name)
+            logger.info("\tCompany: %s", company)
+            logger.info("\tDate Joined: %s", date_joined)
+            logger.info("\tType: %s", job_type)
+            logger.info("\tStatus: %s", status)
+            logger.info("\tDate Registered: %s", date_registered)
 
             row[sheet_config["status_index"]].value = (
                 status.strip().title()
@@ -664,11 +664,18 @@ def process_sheet_qbcc_pool_safety(wb, sheetname, args, config, sheet_config,ori
         
         
                 
-def process_sheet_qbcc_individual(wb, sheetname, args, config, sheet_config, orig_filename, license_querier=query_qbcc_license, keywords=["qbcc", "individual"]):
+def process_sheet_qbcc_individual(wb, sheetname, args, config, sheet_config, orig_filename, license_querier=query_qbcc_license, keywords=None):
     """
     process_sheet_qbcc_individual
     """
-    if not all(keyword in sheetname.lower() for keyword in keywords):
+    used_keywords = []
+    if keywords is None:
+        used_keywords = ["qbcc", "individual"]
+    else:
+        used_keywords.extend(keywords)
+        
+                
+    if not all(keyword in sheetname.lower() for keyword in used_keywords):
         return
 
     logger.info("Processing QBCC Individual...")
@@ -684,29 +691,17 @@ def process_sheet_qbcc_individual(wb, sheetname, args, config, sheet_config, ori
         
         try_save(wb, config, orig_filename, count)
 
-        if not "licence number" in data:
-            logger.info("License No. Column not found !")
+        license_no = row[sheet_config["license_index"]].value if row[sheet_config["license_index"]].value else ''
+        if license_no in [None, '']:
             row[sheet_config["status_index"]].value = (
-                "No License Number Column found!"
+                "Invalid License Number!"
             )
             row[sheet_config["last_checked_index"]].value = (
                 datetime.now().date()
             )
             count = count + 1
             continue
-
-        if not data["licence number"] or data["licence number"].strip() == "":
-            logger.info("License No. is BLANK in the excel file !")
-            row[sheet_config["status_index"]].value = (
-                "License No is BLANK !"
-            )
-            row[sheet_config["last_checked_index"]].value = (
-                datetime.now().date()
-            )
-            count = count + 1
-            continue
-
-        license_no = data["licence number"]
+        
         logger.info("Fetching License info of %s:",license_no)
         lic_statuses = list(license_querier(license_no))
         if len(lic_statuses) > 0:
@@ -718,18 +713,16 @@ def process_sheet_qbcc_individual(wb, sheetname, args, config, sheet_config, ori
             row[sheet_config["status_index"]].value = (
                 lic_status.title().strip()
             )
-            row[sheet_config["last_checked_index"]].value = (
-                datetime.now().date()
-            )
+
         else:
             logger.info("License not found in online register !")
             row[sheet_config["status_index"]].value = (
                 "Missing in Register"
             )
-            row[sheet_config["last_checked_index"]].value = (
-                datetime.now().date()
-            )
-
+            
+        row[sheet_config["last_checked_index"]].value = (
+            datetime.now().date()
+        )
         count = count + 1
 
 def try_save(wb, config, orig_filename, count):
