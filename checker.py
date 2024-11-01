@@ -1,32 +1,35 @@
-import shutil
-import time
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.common.keys import Keys
-import openpyxl
+"""
+Competent Person checker
+"""
 import argparse
-from openpyxl.worksheet.hyperlink import Hyperlink
-import requests
-from bs4 import BeautifulSoup
-import itertools
-import numpy as np
+import time
 import json
-from datetime import datetime
-from selenium.webdriver import ChromeOptions
-from seleniumrequests import Chrome
 import logging
 import re
 import os
 import urllib.parse
 from functools import partial
+from datetime import datetime
+import shutil
+from bs4 import BeautifulSoup
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver import ChromeOptions
+import openpyxl
+import requests
+import numpy as np
+from seleniumrequests import Chrome
 import yaml
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 try:
-    from yaml import CLoader as Loader, CDumper as Dumper
+    # from yaml import CLoader as Loader, CDumper as Dumper
+    from yaml import CLoader as Loader
 except ImportError:
-    from yaml import Loader, Dumper
+    # from yaml import Loader, Dumper
+    from yaml import Loader
+
     
     
 # Create a custom logger
@@ -56,7 +59,6 @@ session.headers.update(
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",  # The version of requests will vary
         "Accept-Encoding": "gzip, deflate, br, zstd",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-        "Connection": "keep-alive",
         "Referer": "https://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/SearchBSALicenseeContent.aspx",
         "Accept-Language": "en-US,en;q=0.8",
         "Cache-Control": "no-cache",
@@ -105,6 +107,9 @@ def parse_qbcc_response(html):
             yield [p.strip() for p in part]
 
 def parse_surveyor_response(html_content):
+    """
+    parse surveyor response
+    """
     # Parse the HTML using BeautifulSoup
     soup = BeautifulSoup(html_content, 'html.parser')
     element = soup.select_one(".search-results")
@@ -146,8 +151,11 @@ def parse_surveyor_response(html_content):
     }
 
 def query_surveyor_license(search_text):
+    """
+    query surveyor license
+    """
     search_text = re.sub(r"\s+", " ", f"{search_text}".strip())
-    logger.info(f"Looking up surveyor info: {search_text}")
+    logger.info("Looking up surveyor info: %s", search_text)
     url = "https://sbq.com.au/find-a-surveyor/search-cadastral/"
     session.get(url)
 
@@ -168,11 +176,13 @@ def query_surveyor_license(search_text):
 
 
 def query_qbcc_license(license_no):
-    
+    """
+    query qbcc license
+    """
     session.get('https://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/SearchBSALicenseeContent.aspx')
 
     license_no = license_no.strip("\r\n\t ")
-    url = f"http://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/ShowDetailResultContent.aspx"
+    url = "http://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/ShowDetailResultContent.aspx"
     params = {
         "LicNO": f"{license_no}",
         "licCat": "LIC",
@@ -187,11 +197,13 @@ def query_qbcc_license(license_no):
 
 
 def query_qbcc_certifier_license(license_no):
-    
+    """
+    query_qbcc_certifier_license
+    """
     session.get('https://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/SearchBuildingCertifierContent.aspx')
 
     license_no = license_no.strip("\r\n\t ")
-    url = f"https://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/ShowDetailResultContent.aspx"
+    url = "https://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/ShowDetailResultContent.aspx"
     params = {
         "LicNO": f"{license_no}",
         "licCat": "LIC",
@@ -303,7 +315,7 @@ def query_arch_registration(license_number, driver: Chrome):
         parts = [
             p.text.strip("\r\n\t ") for p in soup.select(".PanelFieldValue > span")
         ]
-        logger.info(f"Num Parts: {len(parts)}")
+        logger.info("Num Parts: %d", len(parts))
         if len(parts) == 12:
             name = parts[0]
             company = parts[1]
@@ -338,10 +350,7 @@ def process_sheet_arch(wb, sheetname, args, config,sheet_config,orig_filename):
     config = read_config()
     count = 0
 
-    options = ChromeOptions()
-    options.binary_location = './chrome-win64/chrome.exe'
-    # options.add_argument("headless")
-    driver = Chrome(options=options)
+    driver = init_web_driver()
 
     for idx, (row, data) in enumerate(enum_rows(sheet)):
         
@@ -392,8 +401,21 @@ def process_sheet_arch(wb, sheetname, args, config,sheet_config,orig_filename):
         count = count + 1
 
 
+def init_web_driver():
+    """
+    init_chrome
+    """
+    options = ChromeOptions()
+    #chrome-win64\chrome.exe
+    options.binary_location = os.path.join("chrome-win64","chrome.exe")
+    # options.add_argument("headless")
+    driver = Chrome(options=options)
+    return driver
+
 def process_sheet_engr(wb, sheetname, args, config, sheet_config,orig_filename):
-        
+    """
+    process_sheet_engr
+    """
     if not all(keyword in sheetname.lower() for keyword in ["engineers"]):
         return
 
@@ -403,9 +425,7 @@ def process_sheet_engr(wb, sheetname, args, config, sheet_config,orig_filename):
     config = read_config()
     count = 0
 
-    options = ChromeOptions()
-    # options.add_argument("headless")
-    driver = Chrome(options=options)
+    driver = init_web_driver()
 
     for row, data in enum_rows(sheet):
 
@@ -420,7 +440,7 @@ def process_sheet_engr(wb, sheetname, args, config, sheet_config,orig_filename):
             continue
         
         license_number = str(row[sheet_config['license_index']].value or '')
-        logger.info(f"Fetching Registration info of {license_number}:")
+        logger.info("Fetching Registration info of %s:", license_number)
         reg_status = query_engr_registration(license_number, driver)
 
         if reg_status:
@@ -432,12 +452,13 @@ def process_sheet_engr(wb, sheetname, args, config, sheet_config,orig_filename):
             
             status = reg_status['status']
             
-            logger.info(f"\tName: {reg_status['name']}")
-            logger.info(f"\tCompany: {reg_status['company']}")
-            logger.info(f"\tDate Registered From: {reg_status['date_registered_from']}")
-            logger.info(f"\tType: {reg_status['job_type']}")
-            logger.info(f"\tStatus: {reg_status['status']}")
-            logger.info(f"\tDate Registered To: {reg_status['date_registered_to']}")
+            logger.info("\tName: %s", reg_status['name'])
+            logger.info("\tCompany: %s", reg_status['company'])
+            logger.info("\tDate Registered From: %s", reg_status['date_registered_from'])
+            logger.info("\tType: %s", reg_status['job_type'])
+            logger.info("\tStatus: %s", reg_status['status'])
+            logger.info("\tDate Registered To: %s", reg_status['date_registered_to'])
+
 
             row[sheet_config["status_index"]].value = (
                 status.strip().title()
@@ -472,11 +493,13 @@ def handle_surveyor_license_query(row, search_text, sheet_config):
         return False
 
 def process_sheet_surveyor(wb, sheetname, args, config, sheet_config,orig_filename):
-
+    """
+    process_sheet_surveyor
+    """
     if not "surveyor" in sheetname.lower():
         return
     
-    logger.info("Processing Surveyor Tab: {}...".format(sheetname))
+    logger.info("Processing Surveyor Tab: %s...",sheetname)
     session.headers.clear()
     session.headers.update({
         'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
@@ -522,12 +545,15 @@ def should_skip_row(row, sheet_config,cfg):
     last_date_checked = row[sheet_config['last_checked_index']].value
     if last_date_checked and isinstance(last_date_checked, datetime):
         delta = datetime.now().date() - last_date_checked.date()
-        return delta.days >= cfg.get('skip_days',5)
+        return delta.days <= cfg.get('skip_days',5)
     else:
         return  False
         
 
 def query_pool_safety_license(lic_no):
+    """
+    query_pool_safety_license
+    """
     default_headers = {
         'accept': '*/*',
         'accept-language': 'en-US,en;q=0.9',
@@ -587,7 +613,9 @@ def query_pool_safety_license(lic_no):
     return results0
     
 def process_sheet_qbcc_pool_safety(wb, sheetname, args, config, sheet_config,orig_filename):
-    
+    """
+    process_sheet_qbcc_pool_safety
+    """
     if not all(keyword in sheetname.lower() for keyword in ["qbcc", "pool", "safety"]):
         return
 
@@ -596,7 +624,7 @@ def process_sheet_qbcc_pool_safety(wb, sheetname, args, config, sheet_config,ori
     save_interval = config["numrec_before_save"]
     
     for count, (row, data) in enumerate(enum_rows(sheet), start=1):
-        logger.info(f"Processing Line #{count}")
+        logger.info("Processing Line #%d",count)
         
         if count % save_interval == 0:
             logger.info("Saving progress to excel file...")
@@ -615,7 +643,7 @@ def process_sheet_qbcc_pool_safety(wb, sheetname, args, config, sheet_config,ori
         if should_skip_row(row, sheet_config, config):
             continue
         
-        logger.info(f"Fetching License info of {license_no}:")
+        logger.info("Fetching License info of %s:", license_no)
         lic_status = query_pool_safety_license(license_no)
         if lic_status:
             expired = lic_status.get('expired',False)
@@ -635,6 +663,9 @@ def process_sheet_qbcc_pool_safety(wb, sheetname, args, config, sheet_config,ori
         
                 
 def process_sheet_qbcc_individual(wb, sheetname, args, config, sheet_config, orig_filename, license_querier=query_qbcc_license, keywords=["qbcc", "individual"]):
+    """
+    process_sheet_qbcc_individual
+    """
     if not all(keyword in sheetname.lower() for keyword in keywords):
         return
 
@@ -644,7 +675,7 @@ def process_sheet_qbcc_individual(wb, sheetname, args, config, sheet_config, ori
     count = 0
     
     for idx, (row, data) in enumerate(enum_rows(sheet)):
-        logger.info(f"Processing Line #{idx + 1}")
+        logger.info("Processing Line #%s", (idx + 1))
         
         if should_skip_row(row,sheet_config, config):
             continue
@@ -674,13 +705,13 @@ def process_sheet_qbcc_individual(wb, sheetname, args, config, sheet_config, ori
             continue
 
         license_no = data["licence number"]
-        logger.info(f"Fetching License info of {license_no}:")
+        logger.info("Fetching License info of %s:",license_no)
         lic_statuses = list(license_querier(license_no))
         if len(lic_statuses) > 0:
             logger.info("License info found!")
             lic_class, _, _, lic_status = lic_statuses[0]
-            logger.info(f"\tLicense Class: {lic_class}")
-            logger.info(f"\tStatus: {lic_status}")
+            logger.info("\tLicense Class: %s",lic_class)
+            logger.info("\tStatus: %s",lic_status)
 
             row[sheet_config["status_index"]].value = (
                 lic_status.title().strip()
@@ -700,6 +731,9 @@ def process_sheet_qbcc_individual(wb, sheetname, args, config, sheet_config, ori
         count = count + 1
 
 def try_save(wb, config, orig_filename, count):
+    """
+    try saving excel file
+    """
     if count > 0 and (count % config["numrec_before_save"]) == 0:
         logger.info(
                 "===============================================\n \
@@ -708,14 +742,19 @@ def try_save(wb, config, orig_filename, count):
         wb.save(orig_filename)
 
 def read_config():
-
-    with open("./config.yml", "rt", errors="ignore") as fp:
+    """
+    Read YAML configuration
+    """
+    with open("./config.yml", "rt", errors="ignore",encoding='utf-8') as fp:
         conf = yaml.load(fp,Loader=Loader)
 
     return conf
 
 
 def process_workbook(filepath, args):
+    """
+    process workbook
+    """
     wb = None
     
     try:
@@ -738,27 +777,36 @@ def process_workbook(filepath, args):
             # process_sheet_engr,
         ]
         
+        if config.get('with_browser',False):
+            processors += [
+                process_sheet_arch,
+                process_sheet_engr,
+            ]
+
         for sheetname in wb.sheetnames:
             for sheetname_filter in config["sheets_config"].keys():
                 if sheetname_filter.lower() == sheetname.lower():
-                    logger.info(f"Processing SHEET: {sheetname}")
+                    logger.info("Processing SHEET: %s",sheetname)
                     sheet_config = config["sheets_config"][sheetname]
                     
-                    
+
                     for processor in processors:
                         processor(wb, sheetname, args, config, sheet_config, filepath)
-                                
-        logger.info(f"Process done. Saving to {filepath}")
+
+        logger.info("Process done. Saving to %s.", filepath)
         wb.save(filepath)
-        
+
     except Exception as e:
-        logger.exception(e)
+        raise e
     finally:
         if wb:
             wb.close()
 
 
 class IdleFileHandler(FileSystemEventHandler):
+    """
+    hotfolder watcher class
+    """
     def __init__(self, idle_time):
         self.idle_time = idle_time
         self.last_modified_time = {}
@@ -768,12 +816,12 @@ class IdleFileHandler(FileSystemEventHandler):
         if not event.is_directory:
             file_path = event.src_path
             self.last_modified_time[file_path] = time.time()
-            print(f"New file added: {file_path}, waiting for it to become idle.")
-            
+            logger.info("New file added: %s, waiting for it to become idle.",file_path)
+
     def on_modified(self, event):
         if not event.is_directory:
             pass
-    
+
     def __move_file(self,src,dest):
         """
         docstring
@@ -784,6 +832,9 @@ class IdleFileHandler(FileSystemEventHandler):
             pass
 
     def process_if_idle(self, file_path, args, config):
+        """
+        main processor function
+        """
         # Wait until the file is idle
         while True:
             if file_path in self.last_modified_time and self.last_modified_time[file_path]:
@@ -791,7 +842,8 @@ class IdleFileHandler(FileSystemEventHandler):
                 if time_since_modification > self.idle_time:
                     print(f"{file_path} is idle, processing...")
                     self.last_modified_time[file_path] = None
-                    processing_path = os.path.join(config['processing'], os.path.basename(file_path)) 
+                    processing_path = os.path.join(
+                        config['processing'], os.path.basename(file_path))
                     self.__move_file(file_path,processing_path)
                     
                     # Process the file here
@@ -803,14 +855,16 @@ class IdleFileHandler(FileSystemEventHandler):
                         logger.exception(e)
                         error_path = os.path.join(config['error'], os.path.basename(file_path)) 
                         self.__move_file(processing_path,error_path)
-                    
-                    
+
+
                     break
             time.sleep(1)
-            
+
 
 def prep_dirs(config):
-
+    """
+    ensure required folders exists
+    """
     dirs = [
        config.get('hotfolder'),
        config.get('processing'),
@@ -823,12 +877,14 @@ def prep_dirs(config):
             os.makedirs(d,exist_ok=True)
 
 
-def main(args):
+def main():
     """
-    docstring
+    main entry point
     """
-    config = read_config()
+    parser = argparse.ArgumentParser()
+    args = parser.parse_args()
     
+    config = read_config()
     
     prep_dirs(config)
     
@@ -840,9 +896,9 @@ def main(args):
     try:
         logger.info("Monitoring folder: <%s> for changes...",os.path.abspath(config['hotfolder']))
         while True:
-            # If a file has been modified, check if it's idle and process it
+            # If a file has been modified, check if it is idle and process it
             for file in event_handler.last_modified_time:
-                event_handler.process_if_idle(file, args,config)
+                event_handler.process_if_idle(file, args, config)
                         
             time.sleep(1)
     except KeyboardInterrupt:
@@ -851,20 +907,5 @@ def main(args):
     observer.join()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    # parser.add_argument("input")
-    # parser.add_argument("--qbcc", action="store_true")
-    # parser.add_argument("--engr", action="store_true")
-    # parser.add_argument("--arch", action="store_true")
-    # parser.add_argument("--surv", action="store_true")
-
-    console_args = parser.parse_args()
-    main(console_args)
-    
-    # if not os.path.isfile(args.input):
-    #     logger.error("ERROR: Cannot open input file {}!".format(args.input))
-    #     exit(1)
-    
-
-    
+    main()
     
