@@ -340,7 +340,9 @@ def query_arch_registration(license_number, driver: Chrome):
 
 
 def process_sheet_arch(wb, sheetname, args, config,sheet_config,orig_filename):
-        
+    """
+    process_sheet_arch
+    """
     if not "architects" in sheetname.lower():
         return
 
@@ -793,9 +795,8 @@ def process_workbook(filepath, args):
                     for processor in processors:
                         processor(wb, sheetname, args, config, sheet_config, filepath)
 
-        logger.info("Process done. Saving to %s.", filepath)
+        logger.info("Process done. Saving workbook to %s.", filepath)
         wb.save(filepath)
-
     except Exception as e:
         raise e
     finally:
