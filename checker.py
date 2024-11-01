@@ -67,6 +67,14 @@ session.headers.update(
 )
 
 def enum_rows(sheet):
+    """Enumerate Rows
+
+    Args:
+        sheet (_type_): _description_
+
+    Yields:
+        _type_: _description_
+    """
 
     headers = list()
 
@@ -219,6 +227,9 @@ def query_qbcc_certifier_license(license_no):
 
 
 def query_engr_registration(license_number, driver: Chrome):
+    """
+    query_engr_registration
+    """
     try:
         url1 = "https://portal.bpeq.qld.gov.au/BPEQPortal/RPEQ_Directory.aspx"
         driver.get(url1)
@@ -657,13 +668,13 @@ def process_sheet_qbcc_pool_safety(wb, sheetname, args, config, sheet_config,ori
         else:
             logger.info("License not found in online register!")
             row[sheet_config["status_index"]].value = "Missing in Register"
-        
+
         row[sheet_config["last_checked_index"]].value = datetime.now().date()
-    
+
     wb.save(orig_filename)
-        
-        
-                
+
+
+
 def process_sheet_qbcc_individual(wb, sheetname, args, config, sheet_config, orig_filename, license_querier=query_qbcc_license, keywords=None):
     """
     process_sheet_qbcc_individual
@@ -682,16 +693,17 @@ def process_sheet_qbcc_individual(wb, sheetname, args, config, sheet_config, ori
 
     sheet = wb[sheetname]
     count = 0
-    
+
     for idx, (row, data) in enumerate(enum_rows(sheet)):
         logger.info("Processing Line #%s", (idx + 1))
-        
+
         if should_skip_row(row,sheet_config, config):
             continue
-        
+
         try_save(wb, config, orig_filename, count)
 
-        license_no = row[sheet_config["license_index"]].value if row[sheet_config["license_index"]].value else ''
+        license_no = row[sheet_config["license_index"]].value if \
+            row[sheet_config["license_index"]].value else ''
         if license_no in [None, '']:
             row[sheet_config["status_index"]].value = (
                 "Invalid License Number!"
@@ -719,7 +731,7 @@ def process_sheet_qbcc_individual(wb, sheetname, args, config, sheet_config, ori
             row[sheet_config["status_index"]].value = (
                 "Missing in Register"
             )
-            
+
         row[sheet_config["last_checked_index"]].value = (
             datetime.now().date()
         )
@@ -751,7 +763,7 @@ def process_workbook(filepath, args):
     process workbook
     """
     wb = None
-    
+
     try:
         wb = openpyxl.load_workbook(filepath)
 
@@ -771,7 +783,7 @@ def process_workbook(filepath, args):
             # process_sheet_arch,
             # process_sheet_engr,
         ]
-        
+
         if config.get('with_browser',False):
             processors += [
                 process_sheet_arch,
@@ -783,7 +795,7 @@ def process_workbook(filepath, args):
                 if sheetname_filter.lower() == sheetname.lower():
                     logger.info("Processing SHEET: %s",sheetname)
                     sheet_config = config["sheets_config"][sheetname]
-                    
+
 
                     for processor in processors:
                         processor(wb, sheetname, args, config, sheet_config, filepath)
@@ -839,7 +851,7 @@ class IdleFileHandler(FileSystemEventHandler):
                     processing_path = os.path.join(
                         config['processing'], os.path.basename(file_path))
                     self.__move_file(file_path,processing_path)
-                    
+
                     # Process the file here
                     try:
                         process_workbook(processing_path, args)
@@ -877,11 +889,11 @@ def main():
     """
     parser = argparse.ArgumentParser()
     args = parser.parse_args()
-    
+
     config = read_config()
-    
+
     prep_dirs(config)
-    
+
     event_handler = IdleFileHandler(config.get('idle_time',5))
     observer = Observer()
     observer.schedule(event_handler, config['hotfolder'], recursive=False)
@@ -893,7 +905,7 @@ def main():
             # If a file has been modified, check if it is idle and process it
             for file in event_handler.last_modified_time:
                 event_handler.process_if_idle(file, args, config)
-                        
+
             time.sleep(1)
     except KeyboardInterrupt:
         observer.stop()
