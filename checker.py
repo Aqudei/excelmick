@@ -813,7 +813,7 @@ def process_workbook(filepath, args):
             for sheetname_filter in config["sheets_config"].keys():
                 if sheetname_filter.lower().strip() == sheetname.lower().strip():
                     logger.info("Processing SHEET: %s", sheetname)
-                    sheet_config = config["sheets_config"][sheetname]
+                    sheet_config = config["sheets_config"][sheetname_filter]
 
                     for processor in processors:
                         processor(wb, sheetname, args, config, sheet_config, filepath)
