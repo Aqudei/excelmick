@@ -223,7 +223,7 @@ def query_qbcc_certifier_license(license_no):
         "https://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/SearchBuildingCertifierContent.aspx"
     )
 
-    license_no = license_no.strip("\r\n\t ")
+    license_no = f"{license_no}".strip("\r\n\t ")
     url = "https://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/ShowDetailResultContent.aspx"
     params = {
         "LicNO": f"{license_no}",
