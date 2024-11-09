@@ -1,6 +1,7 @@
 """
 Competent Person checker
 """
+
 import argparse
 import time
 import json
@@ -23,6 +24,7 @@ from seleniumrequests import Chrome
 import yaml
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+
 try:
     # from yaml import CLoader as Loader, CDumper as Dumper
     from yaml import CLoader as Loader
@@ -30,8 +32,7 @@ except ImportError:
     # from yaml import Loader, Dumper
     from yaml import Loader
 
-    
-    
+
 # Create a custom logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)  # Set the overall logging level
@@ -66,6 +67,7 @@ session.headers.update(
     }
 )
 
+
 def enum_rows(sheet):
     """Enumerate Rows
 
@@ -91,6 +93,7 @@ def enum_rows(sheet):
 
         yield r, item
 
+
 def parse_qbcc_response(html):
     soup = BeautifulSoup(html, "html.parser")
 
@@ -114,49 +117,54 @@ def parse_qbcc_response(html):
         for part in np.split(items_array, len(items_array) / 4):
             yield [p.strip() for p in part]
 
+
 def parse_surveyor_response(html_content):
     """
     parse surveyor response
     """
     # Parse the HTML using BeautifulSoup
-    soup = BeautifulSoup(html_content, 'html.parser')
+    soup = BeautifulSoup(html_content, "html.parser")
     element = soup.select_one(".search-results")
     if not element:
         return
 
     # Extract name
-    name = element.find('h4').get_text(strip=False).split('<br>')[0]
-    lic_class = element.find('h4').get_text(strip=False).split('<br>')[-1]
+    name = element.find("h4").get_text(strip=False).split("<br>")[0]
+    lic_class = element.find("h4").get_text(strip=False).split("<br>")[-1]
     # Extract phone number
-    phone_element = element.find('td', string='Phone ')
-    phone = ''
-    if phone_element:        
-        phone = phone_element.find_next_sibling('td').get_text()
+    phone_element = element.find("td", string="Phone ")
+    phone = ""
+    if phone_element:
+        phone = phone_element.find_next_sibling("td").get_text()
 
     # Extract email
-    email_element = element.find('td', string='Email ')
-    email = ''
+    email_element = element.find("td", string="Email ")
+    email = ""
     if email_element:
-        email = email_element.find_next_sibling('td').get_text()
-        
+        email = email_element.find_next_sibling("td").get_text()
+
     # Extract address
-    address_element = element.find('td', string='Address')
-    address = ''
+    address_element = element.find("td", string="Address")
+    address = ""
     if address_element:
-        address = address_element.find_next_sibling('td').get_text(separator=', ')
-    
+        address = address_element.find_next_sibling("td").get_text(separator=", ")
+
     types = []
     # Extract types
-    types = [span.get_text() for span in element.find_all('div', class_='types')[0].find_all('span')]
+    types = [
+        span.get_text()
+        for span in element.find_all("div", class_="types")[0].find_all("span")
+    ]
 
     return {
-        "name" : re.sub(r"\s+"," ",name),
-        "license_class" :  re.sub(r"\s+"," ",lic_class),
-        "phone" : phone,
-        "email" : email,
-        "address" : address,
-        "expertise" : '; '.join(types),
+        "name": re.sub(r"\s+", " ", name),
+        "license_class": re.sub(r"\s+", " ", lic_class),
+        "phone": phone,
+        "email": email,
+        "address": address,
+        "expertise": "; ".join(types),
     }
+
 
 def query_surveyor_license(search_text):
     """
@@ -177,9 +185,9 @@ def query_surveyor_license(search_text):
     }
 
     response = session.get(url, params=params)
-    if response.status_code!=200:
+    if response.status_code != 200:
         return
-    
+
     return parse_surveyor_response(response.text)
 
 
@@ -187,7 +195,9 @@ def query_qbcc_license(license_no):
     """
     query qbcc license
     """
-    session.get('https://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/SearchBSALicenseeContent.aspx')
+    session.get(
+        "https://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/SearchBSALicenseeContent.aspx"
+    )
 
     license_no = license_no.strip("\r\n\t ")
     url = "http://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/ShowDetailResultContent.aspx"
@@ -208,7 +218,9 @@ def query_qbcc_certifier_license(license_no):
     """
     query_qbcc_certifier_license
     """
-    session.get('https://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/SearchBuildingCertifierContent.aspx')
+    session.get(
+        "https://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/SearchBuildingCertifierContent.aspx"
+    )
 
     license_no = license_no.strip("\r\n\t ")
     url = "https://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/ShowDetailResultContent.aspx"
@@ -220,7 +232,7 @@ def query_qbcc_certifier_license(license_no):
         "searchType": "Certifier",
         "FromPage": "SearchContr",
     }
-        
+
     response = session.get(url, params=params)
     for r in parse_qbcc_response(response.text):
         yield r
@@ -268,7 +280,7 @@ def query_engr_registration(license_number, driver: Chrome):
             p.text.strip("\r\n\t ") for p in soup.select(".PanelFieldValue > span")
         ]
         logger.info("Num Parts: %d", len(parts))
-        
+
         name = soup.title.text.strip("\r\n\t")
         date_registered_from = parts[0]
         status = parts[3]
@@ -277,14 +289,14 @@ def query_engr_registration(license_number, driver: Chrome):
         job_type = parts[1]
 
         return {
-            'name':name, 
-            'company':company, 
-            'date_registered_from':date_registered_from,
-            'job_type':job_type, 
-            'status':status,
-            'date_registered_to':date_registered_to
+            "name": name,
+            "company": company,
+            "date_registered_from": date_registered_from,
+            "job_type": job_type,
+            "status": status,
+            "date_registered_to": date_registered_to,
         }
-        
+
     except Exception as e:
         logger.info(e)
 
@@ -337,7 +349,6 @@ def query_arch_registration(license_number, driver: Chrome):
 
             return name, company, date_joined, job_type, status, date_registered
         elif len(parts) == 11:
-
             name = parts[0]
             date_joined = parts[3]
             job_type = parts[1]
@@ -350,11 +361,11 @@ def query_arch_registration(license_number, driver: Chrome):
         logger.info(e)
 
 
-def process_sheet_arch(wb, sheetname, args, config,sheet_config,orig_filename):
+def process_sheet_arch(wb, sheetname, args, config, sheet_config, orig_filename):
     """
     process_sheet_arch
     """
-    if not "architects" in sheetname.lower():
+    if "architects" not in sheetname.lower():
         return
 
     logger.info("Processing Architects Tab...")
@@ -366,10 +377,9 @@ def process_sheet_arch(wb, sheetname, args, config,sheet_config,orig_filename):
     driver = init_web_driver()
 
     for idx, (row, data) in enumerate(enum_rows(sheet)):
-        
-        if should_skip_row(row,sheet_config, config):
+        if should_skip_row(row, sheet_config, config):
             continue
-        
+
         if count > 0 and (count % config["numrec_before_save"]) == 0:
             logger.info(
                 "===============================================\n \
@@ -377,9 +387,8 @@ def process_sheet_arch(wb, sheetname, args, config,sheet_config,orig_filename):
             )
             wb.save(orig_filename)
 
-       
-        registration_no = str(row[sheet_config['license_index']].value or '')
-        
+        registration_no = str(row[sheet_config["license_index"]].value or "")
+
         logger.info("Fetching Registration info of %s:", registration_no)
         reg_status = query_arch_registration(registration_no, driver)
 
@@ -396,20 +405,12 @@ def process_sheet_arch(wb, sheetname, args, config,sheet_config,orig_filename):
             logger.info("\tStatus: %s", status)
             logger.info("\tDate Registered: %s", date_registered)
 
-            row[sheet_config["status_index"]].value = (
-                status.strip().title()
-            )
-            row[sheet_config["last_checked_index"]].value = (
-                datetime.now().date()
-            )
+            row[sheet_config["status_index"]].value = status.strip().title()
+            row[sheet_config["last_checked_index"]].value = datetime.now().date()
         else:
             logger.info("Registration info not found in online register !")
-            row[sheet_config["status_index"]].value = (
-                "Missing in Register"
-            )
-            row[sheet_config["last_checked_index"]].value = (
-                datetime.now().date()
-            )
+            row[sheet_config["status_index"]].value = "Missing in Register"
+            row[sheet_config["last_checked_index"]].value = datetime.now().date()
 
         count = count + 1
 
@@ -419,13 +420,14 @@ def init_web_driver():
     init_chrome
     """
     options = ChromeOptions()
-    #chrome-win64\chrome.exe
-    options.binary_location = os.path.join("chrome-win64","chrome.exe")
+    # chrome-win64\chrome.exe
+    options.binary_location = os.path.join("chrome-win64", "chrome.exe")
     # options.add_argument("headless")
     driver = Chrome(options=options)
     return driver
 
-def process_sheet_engr(wb, sheetname, args, config, sheet_config,orig_filename):
+
+def process_sheet_engr(wb, sheetname, args, config, sheet_config, orig_filename):
     """
     process_sheet_engr
     """
@@ -441,7 +443,6 @@ def process_sheet_engr(wb, sheetname, args, config, sheet_config,orig_filename):
     driver = init_web_driver()
 
     for row, data in enum_rows(sheet):
-
         if count > 0 and (count % config["numrec_before_save"]) == 0:
             logger.info(
                 "===============================================\n \
@@ -449,10 +450,10 @@ def process_sheet_engr(wb, sheetname, args, config, sheet_config,orig_filename):
             )
             wb.save(orig_filename)
 
-        if should_skip_row(row,sheet_config, config):
+        if should_skip_row(row, sheet_config, config):
             continue
-        
-        license_number = str(row[sheet_config['license_index']].value or '')
+
+        license_number = str(row[sheet_config["license_index"]].value or "")
         logger.info("Fetching Registration info of %s:", license_number)
         reg_status = query_engr_registration(license_number, driver)
 
@@ -462,39 +463,34 @@ def process_sheet_engr(wb, sheetname, args, config, sheet_config,orig_filename):
             # name, company, date_registered_from, job_type, status, date_registered = reg_status
             # return name, company, date_registered_from, job_type, status, date_registered_to
             # lic_class, _, _, lic_status = lic_statuses[0]
-            
-            status = reg_status['status']
-            
-            logger.info("\tName: %s", reg_status['name'])
-            logger.info("\tCompany: %s", reg_status['company'])
-            logger.info("\tDate Registered From: %s", reg_status['date_registered_from'])
-            logger.info("\tType: %s", reg_status['job_type'])
-            logger.info("\tStatus: %s", reg_status['status'])
-            logger.info("\tDate Registered To: %s", reg_status['date_registered_to'])
 
+            status = reg_status["status"]
 
-            row[sheet_config["status_index"]].value = (
-                status.strip().title()
+            logger.info("\tName: %s", reg_status["name"])
+            logger.info("\tCompany: %s", reg_status["company"])
+            logger.info(
+                "\tDate Registered From: %s", reg_status["date_registered_from"]
             )
-            row[sheet_config["last_checked_index"]].value = (
-                datetime.now().date()
-            )
+            logger.info("\tType: %s", reg_status["job_type"])
+            logger.info("\tStatus: %s", reg_status["status"])
+            logger.info("\tDate Registered To: %s", reg_status["date_registered_to"])
+
+            row[sheet_config["status_index"]].value = status.strip().title()
+            row[sheet_config["last_checked_index"]].value = datetime.now().date()
         else:
             logger.info("Registration info not found in online register !")
-            row[sheet_config["status_index"]].value = (
-                "Missing in Register"
-            )
-            row[sheet_config["last_checked_index"]].value = (
-                datetime.now().date()
-            )
+            row[sheet_config["status_index"]].value = "Missing in Register"
+            row[sheet_config["last_checked_index"]].value = datetime.now().date()
 
         count = count + 1
-        
+
+
 def update_license_status(row, status, sheet_config):
     """Helper function to update status and last checked date for a row."""
     row[sheet_config["status_index"]].value = status
     row[sheet_config["last_checked_index"]].value = datetime.now().date()
-    
+
+
 def handle_surveyor_license_query(row, search_text, sheet_config):
     """Query surveyor's license and update the status in the row."""
     result = query_surveyor_license(search_text)
@@ -505,127 +501,137 @@ def handle_surveyor_license_query(row, search_text, sheet_config):
         update_license_status(row, "License Not Found", sheet_config)
         return False
 
-def process_sheet_surveyor(wb, sheetname, args, config, sheet_config,orig_filename):
+
+def process_sheet_surveyor(wb, sheetname, args, config, sheet_config, orig_filename):
     """
     process_sheet_surveyor
     """
-    if not "surveyor" in sheetname.lower():
+    if "surveyor" not in sheetname.lower():
         return
-    
-    logger.info("Processing Surveyor Tab: %s...",sheetname)
+
+    logger.info("Processing Surveyor Tab: %s...", sheetname)
     session.headers.clear()
-    session.headers.update({
-        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'accept-language': 'en-US,en;q=0.7',
-        'cache-control': 'no-cache',
-        'pragma': 'no-cache',
-        'referer': 'https://sbq.com.au/find-a-surveyor/search-cadastral/',
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
-    })
-    
+    session.headers.update(
+        {
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "accept-language": "en-US,en;q=0.7",
+            "cache-control": "no-cache",
+            "pragma": "no-cache",
+            "referer": "https://sbq.com.au/find-a-surveyor/search-cadastral/",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+        }
+    )
+
     sheet = wb[sheetname]
     count = 0
-    
+
     for idx, (row, data) in enumerate(enum_rows(sheet)):
         if count > 0 and (count % config["numrec_before_save"]) == 0:
             logger.info(
                 "===============================================\n \
                 Saving progress to excel file...\n=================================="
             )
-            wb.save(orig_filename)  
-        
+            wb.save(orig_filename)
+
         # Skip rows with a recent "last checked" date
         if should_skip_row(row, sheet_config, config):
             continue
-        
-        first_name = f"{row[sheet_config['first_name_index']].value or ''}".strip() 
-        surname = f"{row[sheet_config['surname_index']].value or ''}".strip()
-        search_text = re.sub(r'\s+',' ',f"{first_name} {surname}".strip()) 
 
-        if first_name == '' or surname=='':
-            company = f"{row[sheet_config['company_index']].value or ''}".strip() 
-            handle_surveyor_license_query(row, company, sheet_config)    
-        else:        
+        first_name = f"{row[sheet_config['first_name_index']].value or ''}".strip()
+        surname = f"{row[sheet_config['surname_index']].value or ''}".strip()
+        search_text = re.sub(r"\s+", " ", f"{first_name} {surname}".strip())
+
+        if first_name == "" or surname == "":
+            company = f"{row[sheet_config['company_index']].value or ''}".strip()
+            handle_surveyor_license_query(row, company, sheet_config)
+        else:
             # First try with name, fallback to company if name fails
             if not handle_surveyor_license_query(row, search_text, sheet_config):
                 company = f"{row[sheet_config['company_index']].value or ''}".strip()
                 handle_surveyor_license_query(row, company, sheet_config)
-            
+
         count += 1
 
-def should_skip_row(row, sheet_config,cfg):
+
+def should_skip_row(row, sheet_config, cfg):
     """Check if the row should be skipped based on last checked date."""
-    last_date_checked = row[sheet_config['last_checked_index']].value
+    last_date_checked = row[sheet_config["last_checked_index"]].value
     if last_date_checked and isinstance(last_date_checked, datetime):
         delta = datetime.now().date() - last_date_checked.date()
-        return delta.days <= cfg.get('skip_days',5)
+        return delta.days <= cfg.get("skip_days", 5)
     else:
-        return  False
-        
+        return False
+
 
 def query_pool_safety_license(lic_no):
     """
     query_pool_safety_license
     """
     default_headers = {
-        'accept': '*/*',
-        'accept-language': 'en-US,en;q=0.9',
-        'cache-control': 'no-cache',
-        'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'origin': 'https://my.qbcc.qld.gov.au',
-        'pragma': 'no-cache',
-        'priority': 'u=1, i',
-        'referer': 'https://my.qbcc.qld.gov.au/s/pool-safety-inspector-search',
-        'sec-ch-ua': '"Brave";v="129", "Not=A?Brand";v="8", "Chromium";v="129"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
-        'sec-fetch-dest': 'empty',
-        'sec-fetch-mode': 'cors',
-        'sec-fetch-site': 'same-origin',
-        'sec-gpc': '1',
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+        "accept": "*/*",
+        "accept-language": "en-US,en;q=0.9",
+        "cache-control": "no-cache",
+        "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "origin": "https://my.qbcc.qld.gov.au",
+        "pragma": "no-cache",
+        "priority": "u=1, i",
+        "referer": "https://my.qbcc.qld.gov.au/s/pool-safety-inspector-search",
+        "sec-ch-ua": '"Brave";v="129", "Not=A?Brand";v="8", "Chromium";v="129"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-origin",
+        "sec-gpc": "1",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
         # 'x-sfdc-page-scope-id': '3bdc58c4-042b-42d8-8bcd-b875c8aa3bfb',
         # 'x-sfdc-request-id': '415150000004b0f99f',
     }
-    
+
     s = requests.Session()
     response = s.get("https://my.qbcc.qld.gov.au/s/pool-safety-inspector-search")
-    
+
     cookies = s.cookies.get_dict()
     context = cookies.get("renderCtx")
     context_decoded = json.loads(urllib.parse.unquote(context))
     sfdc_req_id = response.headers.get("x-sfdc-request-id")
-    x_sfdc_page_scope_id = context_decoded.get('pageId')
-    
-    s.headers.update(default_headers)
-    s.headers.update({
-        #"x-request-id":req_id,
-        "X-Sfdc-Request-Id":sfdc_req_id,
-        "X-Sfdc-Page-Scope-Id":x_sfdc_page_scope_id
-    })
-    url = 'https://my.qbcc.qld.gov.au/s/sfsites/aura?other.PSISearch.searchInspectors=1'
-    
-    data = {
-        'message': '{"actions":[{"id":"175;a","descriptor":"apex://PSISearchController/ACTION$searchInspectors","callingDescriptor":"markup://c:PSI_Search","params":{"searchBy":"licence","firstName":"","lastName":"","businessName":"","licenceNumber":"%s","distanceInKm":5,"batchSize":1000,"offset":0}}]}' % (lic_no,),
-        'aura.context': '{"mode":"PROD","fwuid":"eGx3MHlRT1lEMUpQaWVxbGRUM1h0Z2hZX25NdHFVdGpDN3BnWlROY1ZGT3cyNTAuOC40LTYuNC41","app":"siteforce:communityApp","loaded":{"APPLICATION@markup://siteforce:communityApp":"wi0I2YUoyrm6Lo80fhxdzA","COMPONENT@markup://instrumentation:o11ySecondaryLoader":"1JitVv-ZC5qlK6HkuofJqQ"},"dn":[],"globals":{},"uad":false}',
-        'aura.pageURI': '/s/pool-safety-inspector-search',
-        'aura.token': 'null',
-    }
-    
-    response = s.post(url,data=data)
+    x_sfdc_page_scope_id = context_decoded.get("pageId")
 
-    results = response.json()['actions'][0]['returnValue']
-    if not results or len(results)<=0:
+    s.headers.update(default_headers)
+    s.headers.update(
+        {
+            # "x-request-id":req_id,
+            "X-Sfdc-Request-Id": sfdc_req_id,
+            "X-Sfdc-Page-Scope-Id": x_sfdc_page_scope_id,
+        }
+    )
+    url = "https://my.qbcc.qld.gov.au/s/sfsites/aura?other.PSISearch.searchInspectors=1"
+
+    data = {
+        "message": '{"actions":[{"id":"175;a","descriptor":"apex://PSISearchController/ACTION$searchInspectors","callingDescriptor":"markup://c:PSI_Search","params":{"searchBy":"licence","firstName":"","lastName":"","businessName":"","licenceNumber":"%s","distanceInKm":5,"batchSize":1000,"offset":0}}]}'
+        % (lic_no,),
+        "aura.context": '{"mode":"PROD","fwuid":"eGx3MHlRT1lEMUpQaWVxbGRUM1h0Z2hZX25NdHFVdGpDN3BnWlROY1ZGT3cyNTAuOC40LTYuNC41","app":"siteforce:communityApp","loaded":{"APPLICATION@markup://siteforce:communityApp":"wi0I2YUoyrm6Lo80fhxdzA","COMPONENT@markup://instrumentation:o11ySecondaryLoader":"1JitVv-ZC5qlK6HkuofJqQ"},"dn":[],"globals":{},"uad":false}',
+        "aura.pageURI": "/s/pool-safety-inspector-search",
+        "aura.token": "null",
+    }
+
+    response = s.post(url, data=data)
+
+    results = response.json()["actions"][0]["returnValue"]
+    if not results or len(results) <= 0:
         return
-    
+
     results0 = results[0]
-    expiry_date = datetime.strptime(results0['expiryDate'], "%Y-%m-%d")
+    expiry_date = datetime.strptime(results0["expiryDate"], "%Y-%m-%d")
     if datetime.now() > expiry_date:
-        results0['expired'] = True
-        
+        results0["expired"] = True
+
     return results0
-    
-def process_sheet_qbcc_pool_safety(wb, sheetname, args, config, sheet_config,orig_filename):
+
+
+def process_sheet_qbcc_pool_safety(
+    wb, sheetname, args, config, sheet_config, orig_filename
+):
     """
     process_sheet_qbcc_pool_safety
     """
@@ -635,32 +641,36 @@ def process_sheet_qbcc_pool_safety(wb, sheetname, args, config, sheet_config,ori
     logger.info("Processing QBCC Pool Safety Tab <QBCC>...")
     sheet = wb[sheetname]
     save_interval = config["numrec_before_save"]
-    
+
     for count, (row, data) in enumerate(enum_rows(sheet), start=1):
-        logger.info("Processing Line #%d",count)
-        
+        logger.info("Processing Line #%d", count)
+
         if count % save_interval == 0:
             logger.info("Saving progress to excel file...")
             wb.save(orig_filename)
 
         license_no = data.get("licence number", "").strip()
-                # Skip rows with a recent "last checked" date
-        
+        # Skip rows with a recent "last checked" date
+
         if not license_no:
-            message = "License No. Column not found!" if "licence number" not in data else "License No is BLANK !"
+            message = (
+                "License No. Column not found!"
+                if "licence number" not in data
+                else "License No is BLANK !"
+            )
             logger.info(message)
             row[sheet_config["status_index"]].value = message
             row[sheet_config["last_checked_index"]].value = datetime.now().date()
             continue
-        
+
         if should_skip_row(row, sheet_config, config):
             continue
-        
+
         logger.info("Fetching License info of %s:", license_no)
         lic_status = query_pool_safety_license(license_no)
         if lic_status:
-            expired = lic_status.get('expired',False)
-            
+            expired = lic_status.get("expired", False)
+
             if expired:
                 row[sheet_config["status_index"]].value = "License Expired"
             else:
@@ -674,8 +684,16 @@ def process_sheet_qbcc_pool_safety(wb, sheetname, args, config, sheet_config,ori
     wb.save(orig_filename)
 
 
-
-def process_sheet_qbcc_individual(wb, sheetname, args, config, sheet_config, orig_filename, license_querier=query_qbcc_license, keywords=None):
+def process_sheet_qbcc_individual(
+    wb,
+    sheetname,
+    args,
+    config,
+    sheet_config,
+    orig_filename,
+    license_querier=query_qbcc_license,
+    keywords=None,
+):
     """
     process_sheet_qbcc_individual
     """
@@ -684,8 +702,7 @@ def process_sheet_qbcc_individual(wb, sheetname, args, config, sheet_config, ori
         used_keywords = ["qbcc", "individual"]
     else:
         used_keywords.extend(keywords)
-        
-                
+
     if not all(keyword in sheetname.lower() for keyword in used_keywords):
         return
 
@@ -697,45 +714,39 @@ def process_sheet_qbcc_individual(wb, sheetname, args, config, sheet_config, ori
     for idx, (row, data) in enumerate(enum_rows(sheet)):
         logger.info("Processing Line #%s", (idx + 1))
 
-        if should_skip_row(row,sheet_config, config):
+        if should_skip_row(row, sheet_config, config):
             continue
 
         try_save(wb, config, orig_filename, count)
 
-        license_no = row[sheet_config["license_index"]].value if \
-            row[sheet_config["license_index"]].value else ''
-        if license_no in [None, '']:
-            row[sheet_config["status_index"]].value = (
-                "Invalid License Number!"
-            )
-            row[sheet_config["last_checked_index"]].value = (
-                datetime.now().date()
-            )
+        license_no = (
+            row[sheet_config["license_index"]].value
+            if row[sheet_config["license_index"]].value
+            else ""
+        )
+        if license_no in [None, ""]:
+            row[sheet_config["status_index"]].value = "Invalid License Number!"
+            row[sheet_config["last_checked_index"]].value = datetime.now().date()
             count = count + 1
             continue
-        
-        logger.info("Fetching License info of %s:",license_no)
+
+        logger.info("Fetching License info of %s:", license_no)
         lic_statuses = list(license_querier(license_no))
         if len(lic_statuses) > 0:
             logger.info("License info found!")
             lic_class, _, _, lic_status = lic_statuses[0]
-            logger.info("\tLicense Class: %s",lic_class)
-            logger.info("\tStatus: %s",lic_status)
+            logger.info("\tLicense Class: %s", lic_class)
+            logger.info("\tStatus: %s", lic_status)
 
-            row[sheet_config["status_index"]].value = (
-                lic_status.title().strip()
-            )
+            row[sheet_config["status_index"]].value = lic_status.title().strip()
 
         else:
             logger.info("License not found in online register !")
-            row[sheet_config["status_index"]].value = (
-                "Missing in Register"
-            )
+            row[sheet_config["status_index"]].value = "Missing in Register"
 
-        row[sheet_config["last_checked_index"]].value = (
-            datetime.now().date()
-        )
+        row[sheet_config["last_checked_index"]].value = datetime.now().date()
         count = count + 1
+
 
 def try_save(wb, config, orig_filename, count):
     """
@@ -743,17 +754,18 @@ def try_save(wb, config, orig_filename, count):
     """
     if count > 0 and (count % config["numrec_before_save"]) == 0:
         logger.info(
-                "===============================================\n \
+            "===============================================\n \
                 Saving progress to excel file...\n=================================="
-            )
+        )
         wb.save(orig_filename)
+
 
 def read_config():
     """
     Read YAML configuration
     """
-    with open("./config.yml", "rt", errors="ignore",encoding='utf-8') as fp:
-        conf = yaml.load(fp,Loader=Loader)
+    with open("./config.yml", "rt", errors="ignore", encoding="utf-8") as fp:
+        conf = yaml.load(fp, Loader=Loader)
 
     return conf
 
@@ -771,8 +783,14 @@ def process_workbook(filepath, args):
         logger.info("\n".join([f"\t{s}" for s in wb.sheetnames]))
 
         config = read_config()
-        process_qbcc_certifier = partial(process_sheet_qbcc_individual, license_querier=query_qbcc_certifier_license,keywords=['qbcc','certifier'])
-        process_qbcc_company = partial(process_sheet_qbcc_individual,keywords=['qbcc','company'])
+        process_qbcc_certifier = partial(
+            process_sheet_qbcc_individual,
+            license_querier=query_qbcc_certifier_license,
+            keywords=["qbcc", "certifier"],
+        )
+        process_qbcc_company = partial(
+            process_sheet_qbcc_individual, keywords=["qbcc", "company"]
+        )
 
         processors = [
             process_sheet_qbcc_individual,
@@ -780,11 +798,11 @@ def process_workbook(filepath, args):
             process_qbcc_certifier,
             process_sheet_qbcc_pool_safety,
             process_sheet_surveyor,
-            # process_sheet_arch,
-            # process_sheet_engr,
+            process_sheet_arch,
+            process_sheet_engr,
         ]
 
-        if config.get('with_browser',False):
+        if config.get("with_browser", False):
             processors += [
                 process_sheet_arch,
                 process_sheet_engr,
@@ -792,10 +810,9 @@ def process_workbook(filepath, args):
 
         for sheetname in wb.sheetnames:
             for sheetname_filter in config["sheets_config"].keys():
-                if sheetname_filter.lower() == sheetname.lower():
-                    logger.info("Processing SHEET: %s",sheetname)
+                if sheetname_filter.lower().strip() == sheetname.lower().strip():
+                    logger.info("Processing SHEET: %s", sheetname)
                     sheet_config = config["sheets_config"][sheetname]
-
 
                     for processor in processors:
                         processor(wb, sheetname, args, config, sheet_config, filepath)
@@ -813,22 +830,22 @@ class IdleFileHandler(FileSystemEventHandler):
     """
     hotfolder watcher class
     """
+
     def __init__(self, idle_time):
         self.idle_time = idle_time
         self.last_modified_time = {}
-
 
     def on_created(self, event):
         if not event.is_directory:
             file_path = event.src_path
             self.last_modified_time[file_path] = time.time()
-            logger.info("New file added: %s, waiting for it to become idle.",file_path)
+            logger.info("New file added: %s, waiting for it to become idle.", file_path)
 
     def on_modified(self, event):
         if not event.is_directory:
             pass
 
-    def __move_file(self,src,dest):
+    def __move_file(self, src, dest):
         """
         docstring
         """
@@ -843,25 +860,34 @@ class IdleFileHandler(FileSystemEventHandler):
         """
         # Wait until the file is idle
         while True:
-            if file_path in self.last_modified_time and self.last_modified_time[file_path]:
-                time_since_modification = time.time() - self.last_modified_time[file_path]
+            if (
+                file_path in self.last_modified_time
+                and self.last_modified_time[file_path]
+            ):
+                time_since_modification = (
+                    time.time() - self.last_modified_time[file_path]
+                )
                 if time_since_modification > self.idle_time:
                     print(f"{file_path} is idle, processing...")
                     self.last_modified_time[file_path] = None
                     processing_path = os.path.join(
-                        config['processing'], os.path.basename(file_path))
-                    self.__move_file(file_path,processing_path)
+                        config["processing"], os.path.basename(file_path)
+                    )
+                    self.__move_file(file_path, processing_path)
 
                     # Process the file here
                     try:
                         process_workbook(processing_path, args)
-                        done_path = os.path.join(config['done'], os.path.basename(file_path)) 
+                        done_path = os.path.join(
+                            config["done"], os.path.basename(file_path)
+                        )
                         self.__move_file(processing_path, done_path)
                     except Exception as e:
                         logger.exception(e)
-                        error_path = os.path.join(config['error'], os.path.basename(file_path)) 
-                        self.__move_file(processing_path,error_path)
-
+                        error_path = os.path.join(
+                            config["error"], os.path.basename(file_path)
+                        )
+                        self.__move_file(processing_path, error_path)
 
                     break
             time.sleep(1)
@@ -872,15 +898,15 @@ def prep_dirs(config):
     ensure required folders exists
     """
     dirs = [
-       config.get('hotfolder'),
-       config.get('processing'),
-        config.get('done'),
-    config.get('error'),
+        config.get("hotfolder"),
+        config.get("processing"),
+        config.get("done"),
+        config.get("error"),
     ]
 
     for d in dirs:
         if d:
-            os.makedirs(d,exist_ok=True)
+            os.makedirs(d, exist_ok=True)
 
 
 def main():
@@ -894,13 +920,16 @@ def main():
 
     prep_dirs(config)
 
-    event_handler = IdleFileHandler(config.get('idle_time',5))
+    event_handler = IdleFileHandler(config.get("idle_time", 5))
     observer = Observer()
-    observer.schedule(event_handler, config['hotfolder'], recursive=False)
+    observer.schedule(event_handler, config["hotfolder"], recursive=False)
     observer.start()
 
     try:
-        logger.info("Monitoring folder: <%s> for changes...",os.path.abspath(config['hotfolder']))
+        logger.info(
+            "Monitoring folder: <%s> for changes...",
+            os.path.abspath(config["hotfolder"]),
+        )
         while True:
             # If a file has been modified, check if it is idle and process it
             for file in event_handler.last_modified_time:
@@ -912,6 +941,6 @@ def main():
 
     observer.join()
 
+
 if __name__ == "__main__":
     main()
-    
