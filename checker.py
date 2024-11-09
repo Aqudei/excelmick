@@ -195,7 +195,7 @@ def query_qbcc_license(license_no):
     """
     query qbcc license
     """
-    
+
     session.get(
         "https://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/SearchBSALicenseeContent.aspx"
     )
@@ -813,7 +813,13 @@ def process_workbook(filepath, args):
             for sheetname_filter in config["sheets_config"].keys():
                 if sheetname_filter.lower().strip() == sheetname.lower().strip():
                     logger.info("Processing SHEET: %s", sheetname)
-                    sheet_config = config["sheets_config"][sheetname_filter]
+                    sheet_config = config["sheets_config"].get(sheetname_filter)
+                    if not sheet_config:
+                        logger.error(
+                            "Sheet/Tab with name: %s was not found in config.yml. Please re-check!",
+                            sheetname,
+                        )
+                        break
 
                     for processor in processors:
                         processor(wb, sheetname, args, config, sheet_config, filepath)
@@ -841,7 +847,9 @@ class IdleFileHandler(FileSystemEventHandler):
             file_path = event.src_path
             if "~" not in file_path:
                 self.last_modified_time[file_path] = time.time()
-                logger.info("New file added: %s, waiting for it to become idle.", file_path)
+                logger.info(
+                    "New file added: %s, waiting for it to become idle.", file_path
+                )
 
     def on_modified(self, event):
         if not event.is_directory:
