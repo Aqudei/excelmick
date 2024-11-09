@@ -195,11 +195,12 @@ def query_qbcc_license(license_no):
     """
     query qbcc license
     """
+    
     session.get(
         "https://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/SearchBSALicenseeContent.aspx"
     )
 
-    license_no = license_no.strip("\r\n\t ")
+    license_no = f"{license_no}".strip("\r\n\t ")
     url = "http://www.onlineservices.qbcc.qld.gov.au/OnlineLicenceSearch/VisualElements/ShowDetailResultContent.aspx"
     params = {
         "LicNO": f"{license_no}",
