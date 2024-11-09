@@ -838,8 +838,9 @@ class IdleFileHandler(FileSystemEventHandler):
     def on_created(self, event):
         if not event.is_directory:
             file_path = event.src_path
-            self.last_modified_time[file_path] = time.time()
-            logger.info("New file added: %s, waiting for it to become idle.", file_path)
+            if "~" not in file_path:
+                self.last_modified_time[file_path] = time.time()
+                logger.info("New file added: %s, waiting for it to become idle.", file_path)
 
     def on_modified(self, event):
         if not event.is_directory:
