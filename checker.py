@@ -46,7 +46,7 @@ console_handler.setLevel(logging.INFO)  # Only INFO and above for console
 file_handler.setLevel(logging.DEBUG)  # DEBUG and above for file
 
 # Create formatters and add it to handlers
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(funcName)s - %(message)s")
 console_handler.setFormatter(formatter)
 file_handler.setFormatter(formatter)
 
@@ -770,6 +770,9 @@ def read_config():
 
     return conf
 
+def reduce_text(text:str):
+    output = re.sub(r"^[\s\d]+\.",text.lower(),"")
+    return output.strip()
 
 def process_workbook(filepath, args):
     """
@@ -811,7 +814,7 @@ def process_workbook(filepath, args):
 
         for sheetname in wb.sheetnames:
             for sheetname_filter in config["sheets_config"].keys():
-                if sheetname_filter.lower().strip() == sheetname.lower().strip():
+                if reduce_text(sheetname_filter) == reduce_text(sheetname):
                     logger.info("Processing SHEET: %s", sheetname)
                     sheet_config = config["sheets_config"].get(sheetname_filter)
                     if not sheet_config:
@@ -856,12 +859,9 @@ class IdleFileHandler(FileSystemEventHandler):
             pass
 
     def __move_file(self, src, dest):
-        """
-        docstring
-        """
         try:
             shutil.move(src, dest)
-        except:
+        except Exception:
             pass
 
     def process_if_idle(self, file_path, args, config):
