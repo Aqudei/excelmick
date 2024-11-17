@@ -771,7 +771,7 @@ def read_config():
     return conf
 
 def reduce_text(text:str):
-    output = re.sub(r"^[\s\d]+\.",text.lower(),"")
+    output = re.sub(r"^[\s\d]+\.","",text.lower())
     return output.strip()
 
 def process_workbook(filepath, args):
