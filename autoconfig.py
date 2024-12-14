@@ -111,12 +111,12 @@ def main():
             for sp in sheet_processors:
                 sheet_config = sp(sheetname, extract_columns(workbook[sheetname]))
                 if sheet_config:
-                    new_sheet_configs[sheetname] = sheet_config
+                    new_sheet_configs[re.sub(r"^[\d\.]+","", sheetname).strip()] = sheet_config
                     break
         
         config['sheets_config'] = new_sheet_configs
         
-        yaml_dumped = yaml.dump(config,Dumper=Dumper)
+        yaml_dumped = yaml.dump(config,Dumper=Dumper,indent=4)
         
         print("New config will be generated as follows:")
         print(yaml_dumped)
