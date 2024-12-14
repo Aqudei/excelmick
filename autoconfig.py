@@ -2,6 +2,8 @@ import argparse
 import re
 import openpyxl
 import openpyxl.worksheet
+import traceback
+import os
 
 try:
     # from yaml import CLoader as Loader, CDumper as Dumper
@@ -90,34 +92,44 @@ def read_config(ymlfile):
 
 
 def main():
-    """
-    docstring
-    """
+
     parser = argparse.ArgumentParser()
     parser.add_argument("input")
     parser.add_argument("--config", default="./config.yml")
 
     args = parser.parse_args()
 
-    config = read_config(args.config)
-    print(config)
+    try:
+        config = read_config(args.config)
 
-    workbook = openpyxl.load_workbook(args.input, read_only=True)
-    new_sheet_configs = dict()
-    for sheetname in workbook.sheetnames:
-        if "how to" in sheetname.lower():
-            continue
+        workbook = openpyxl.load_workbook(args.input, read_only=True)
+        new_sheet_configs = dict()
+        for sheetname in workbook.sheetnames:
+            if "how to" in sheetname.lower():
+                continue
 
-        for sp in sheet_processors:
-            sheet_config = sp(sheetname, extract_columns(workbook[sheetname]))
-            if sheet_config:
-                new_sheet_configs[sheetname] = sheet_config
-                break
-    
-    config['sheets_config'] = new_sheet_configs
-    
-    yaml_dumped = yaml.dump(config,Dumper=Dumper)
-
+            for sp in sheet_processors:
+                sheet_config = sp(sheetname, extract_columns(workbook[sheetname]))
+                if sheet_config:
+                    new_sheet_configs[sheetname] = sheet_config
+                    break
+        
+        config['sheets_config'] = new_sheet_configs
+        
+        yaml_dumped = yaml.dump(config,Dumper=Dumper)
+        
+        print("New config will be generated as follows:")
+        print(yaml_dumped)
+        key = input(f"Do you want to replace original config '{os.path.abspath(args.config)}' with the above? ")
+        if key.lower().startswith("y"):
+            with open(os.path.abspath(args.config),'wt') as outfile:
+                outfile.write(yaml_dumped)
+                outfile.flush()
+                
+    except Exception as e:
+        print("Cannot complete AutoConfig! Please see errors below.")
+        print(traceback.format_exc())
+        
     # for worksheet in workbook:
     #     columns = extract_columns(worksheet)
     #     print(columns)
