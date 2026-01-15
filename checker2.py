@@ -1,107 +1,41 @@
 import asyncio
-import pdb
-from bs4 import BeautifulSoup
+from processors import architects
+
 import pandas as pd
 import openpyxl
-from playwright.async_api import async_playwright
-from playwright.async_api import Page
+import logging
 
 
-async def get_sheets_as_df(file_path):
-    # Load the Excel file
-    file_path = "processing\\24.10.03 - Competent Person Register.xlsx"
-    workbook = openpyxl.load_workbook(file_path)
+logger = logging.getLogger(__name__)
 
-    for sheet in workbook.sheetnames:
-        print(f"Sheet name: {sheet}")
-        sheet = workbook[sheet]
-        # Read data into a DataFrame
-        data = pd.DataFrame(sheet.values)
-        data.columns = data.iloc[0]
-        data = data[1:]
-        yield data, sheet.title
+def get_sheets_as_df(file_path):
+    logger.info("Opening file: <{}>".format(file_path))
+    workbook = openpyxl.load_workbook(file_path, read_only=True)
+
+    sheets_data = {}
+
+    for sheet_name in workbook.sheetnames:
+        ws = workbook[sheet_name]
+
+        df = pd.DataFrame(ws.values)
+        df.columns = df.iloc[0]
+        df = df.iloc[1:].reset_index(drop=True)
+
+        sheets_data[sheet_name] = df
 
     workbook.close()
-
-
-async def boaq_search_reg_no(page: Page, reg_no):
-    await page.goto(
-        "https://www.boaq.qld.gov.au/Web/Consumers/Search_the_Register/Web/Architect_Search.aspx?hkey=f493b110-1ad9-4ec8-a830-f9a1f70e16b5"
-    )
-
-    await page.fill(
-        "#ctl01_TemplateBody_WebPartManager1_gwpciArchitectsearch_ciArchitectsearch_ResultsGrid_Sheet0_Input3_TextBox1",
-        reg_no,
-    )
-    await page.click(
-        "#ctl01_TemplateBody_WebPartManager1_gwpciArchitectsearch_ciArchitectsearch_ResultsGrid_Sheet0_SubmitButton",
-    )
-
-    await page.wait_for_load_state("networkidle")
-    soup = BeautifulSoup(await page.content(), "html.parser")
-    table = soup.find("table", class_="rgMasterTable")
-
-    # ---- get visible headers ----
-    headers = []
-    for th in table.select("thead th"):
-        # skip hidden headers
-        if "display:none" in (th.get("style") or ""):
-            continue
-        headers.append(th.get_text(strip=True))
-
-    # ---- parse rows ----
-    rows = []
-    for tr in table.select("tbody tr"):
-        cells = tr.find_all("td")
-
-        row = {}
-        col_index = 0
-
-        for td in cells:
-            # skip hidden cells
-            if "display:none" in (td.get("style") or ""):
-                continue
-
-            # extract link if present
-            a = td.find("a")
-            if a:
-                value = a.get_text(strip=True)
-                link = a.get("href")
-                row[headers[col_index]] = {
-                    "text": value,
-                    "url": link
-                }
-            else:
-                row[headers[col_index]] = td.get_text(strip=True)
-
-            col_index += 1
-
-        rows.append(row)
-
-    return rows
-
-async def handle_archi_sheet(df, sheet_name):
-    # Example processing for 'archi' sheets
-    print("Processing 'archi' sheet...")
-
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)
-        page = await browser.new_page()
-
-        for index, row in df.iterrows():
-            result = await boaq_search_reg_no(page, row.licence_number)
-
-        await browser.close()
+    
+    return sheets_data
 
 
 async def main():
-    file_path = "processing\\24.10.03 - Competent Person Register.xlsx"
+    file_path = r"C:\dev\excelmick\processing\24.09.27 - Competent Person Register.xlsx"
     dfs = get_sheets_as_df(file_path)
 
-    async for df, sheet_name in dfs:
+    for sheet_name, df  in dfs.items():
         df.columns = df.columns.str.lower().str.replace(" ", "_")
         if "archi" in sheet_name.lower():
-            await handle_archi_sheet(df, sheet_name)
+            await architects.handle_sheet(df, sheet_name, file_path)
 
 
 if __name__ == "__main__":
