@@ -1,14 +1,12 @@
 from bs4 import BeautifulSoup
-from playwright.async_api import async_playwright
 from playwright.async_api import Page
 import requests
 import logging
 from db import architect_set_status, architect_find
 import openpyxl
-from datetime import datetime, timezone
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
-
 
 async def architect_get_status(resource):
     url = "https://www.boaq.qld.gov.au" + resource
@@ -85,8 +83,9 @@ async def boaq_search_reg_no(page: Page, reg_no):
 
 async def handle_sheet(df, sheet_name, input_file):
     # Example processing for 'archi' sheets
-    # await fetch_updates(df, sheet_name)
-
+    print("Fetching architect updates...")
+    await fetch_updates(df, sheet_name)
+    print("Applying architect updates...")
     await apply_updates(sheet_name, input_file)
 
 
@@ -99,12 +98,11 @@ async def apply_updates(sheet_name, input_file):
     value_column = 7
     timestamp_column = 8
 
-    for row_idx, _row in enumerate(ws.iter_rows(min_row=2),start=1):
+    for row_idx, _row in enumerate(ws.iter_rows(min_row=2), start=1):
         value = _row[key_column - 1].value  # column A
         if value is None:
             continue
 
-    
         archs = architect_find(value)
 
         ws.cell(row=row_idx + 1, column=value_column).value = archs[0]["status"]
