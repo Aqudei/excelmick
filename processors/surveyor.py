@@ -1,5 +1,6 @@
 # https://sbq.com.au/find-a-surveyor/search-sbq-registrant-list/?type=all&search-type=name&title=Paul+Leonard+Heald&postcode=&radius=10&q=Search
 
+import os
 from bs4 import BeautifulSoup
 from playwright.async_api import Page
 import requests
@@ -77,8 +78,8 @@ async def handle_sheet(df, sheet_name, input_file, args=None):
         await apply_updates(sheet_name, input_file)
 
 
-async def apply_updates(sheet_name, input_file):
-    wb = openpyxl.load_workbook(input_file)
+async def apply_updates(sheet_name, input_filename):
+    wb = openpyxl.load_workbook(input_filename, read_only=True)
     ws = wb[sheet_name]
 
     value_column = 6
@@ -103,7 +104,10 @@ async def apply_updates(sheet_name, input_file):
             "reg_no", ""
         )
 
-    wb.save(filename=input_file)
+    base, ext = os.path.splitext(input_filename)
+    final_output_filename = f"{base}_output{ext}"
+
+    wb.save(filename=final_output_filename)
     wb.close()
 
 
@@ -117,7 +121,6 @@ async def fetch_updates(df, sheet_name):
 
         info = await fetch_item(name)
         if not info:
-            upsert(DB_NAME, {"status": "Not Found", "name": name}, name)
-
+            upsert(DB_NAME, {"status": "Not Found", "key": name}, name)
         else:
-            upsert(DB_NAME, {**info, "status": "Active"}, name)
+            upsert(DB_NAME, {**info, "status": "Active", "key": name}, name)

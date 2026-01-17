@@ -1,5 +1,5 @@
 import asyncio
-from processors import surveyor, qbcc_individual, architects
+from processors import surveyor, qbcc_individual, architects, qbcc_company
 import pandas as pd
 import openpyxl
 import logging
@@ -32,19 +32,22 @@ def get_sheets_as_df(file_path):
 
 
 async def main(args):
-    file_path = r"C:\dev\excelmick\processing\24.09.27 - Competent Person Register.xlsx"
+    file_path = r"C:\dev\excelmick\processing\24.09.12 - Competent Person Register.xlsx"
     dfs = get_sheets_as_df(file_path)
 
     for sheet_name, df in dfs.items():
         df.columns = df.columns.str.lower().str.replace(" ", "_")
-        # if "archi" in sheet_name.lower():
-        #     await architects.handle_sheet(df, sheet_name, file_path)
+        if "archi" in sheet_name.lower():
+            await architects.handle_sheet(df, sheet_name, file_path)
 
-        # if "surveyor" in sheet_name.lower():
-        #     await surveyor.handle_sheet(df, sheet_name, file_path, args)
+        if "surveyor" in sheet_name.lower():
+            await surveyor.handle_sheet(df, sheet_name, file_path, args)
         if "qbcc" in sheet_name.lower() and 'individual' in sheet_name.lower():
             await qbcc_individual.handle_sheet(df, sheet_name, file_path, args)
 
+        if "qbcc" in sheet_name.lower() and 'company' in sheet_name.lower():
+            await qbcc_company.handle_sheet(df, sheet_name, file_path, args)
+            
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--fetch",action='store_true')

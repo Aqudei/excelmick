@@ -1,3 +1,4 @@
+import os
 from bs4 import BeautifulSoup
 from playwright.async_api import Page
 import requests
@@ -7,6 +8,7 @@ import openpyxl
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
 
 async def architect_get_status(resource):
     url = "https://www.boaq.qld.gov.au" + resource
@@ -81,16 +83,20 @@ async def boaq_search_reg_no(page: Page, reg_no):
     return rows
 
 
-async def handle_sheet(df, sheet_name, input_file):
+async def handle_sheet(df, sheet_name, input_file, args=None):
     # Example processing for 'archi' sheets
-    print("Fetching architect updates...")
-    await fetch_updates(df, sheet_name)
-    print("Applying architect updates...")
-    await apply_updates(sheet_name, input_file)
+    
+    if args.fetch:
+        print("Fetching architect updates...")
+        await fetch_updates(df, sheet_name)
+        
+    if args.apply:
+        print("Applying architect updates...")
+        await apply_updates(sheet_name, input_file)
 
 
-async def apply_updates(sheet_name, input_file):
-    wb = openpyxl.load_workbook(input_file)
+async def apply_updates(sheet_name, input_filename):
+    wb = openpyxl.load_workbook(input_filename)
     ws = wb[sheet_name]
 
     # 1-based index
@@ -108,7 +114,10 @@ async def apply_updates(sheet_name, input_file):
         ws.cell(row=row_idx + 1, column=value_column).value = archs[0]["status"]
         ws.cell(row=row_idx + 1, column=timestamp_column).value = datetime.now()
 
-    wb.save(filename=input_file)
+    base, ext = os.path.splitext(input_filename)
+    final_output_filename = f"{base}_output{ext}"
+
+    wb.save(filename=final_output_filename)
     wb.close()
 
 

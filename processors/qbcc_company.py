@@ -2,7 +2,7 @@
 
 import os
 from bs4 import BeautifulSoup
-from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
+from playwright.async_api import Page
 import logging
 from db import upsert, find_by_key
 import openpyxl
@@ -11,7 +11,7 @@ from playwright.async_api import async_playwright
 
 logger = logging.getLogger(__name__)
 
-DB_NAME = "qbcc-individual"
+DB_NAME = "qbcc-company"
 
 
 def parse_response(html):
@@ -71,64 +71,27 @@ def parse_response(html):
 
 
 async def fetch_item(page: Page, lic_no: str):
-    url = "https://my.qbcc.qld.gov.au/myQBCC/s/qbcc-licensee-register"
-
     try:
-        await page.goto(url, wait_until="domcontentloaded")
-
+        url = "https://my.qbcc.qld.gov.au/myQBCC/s/qbcc-licensee-register"
+        await page.goto(url)
         # Open combobox
-        combobox = page.get_by_role("combobox")
-        await combobox.click()
+        await page.get_by_role("combobox").click()
 
-        # Select "Licence number"
+        # Wait for dropdown to appear
+        await page.get_by_role("listbox").wait_for()
+
+        # Select option
         await page.get_by_role("option", name="Licence number").click()
-
-        # Fill licence number and search
         await page.get_by_placeholder("Licence number").fill(lic_no)
         await page.get_by_role("button", name="Search").click()
 
-        no_result = page.get_by_text("Sorry, no matching items found.")
-        info_button = page.get_by_role("button", name="Licensee Info")
-
-        # Wait for either outcome
-        import asyncio
-
-        task_no_result = asyncio.create_task(no_result.wait_for())
-        task_info = asyncio.create_task(info_button.wait_for())
-
-        done, pending = await asyncio.wait(
-            {task_no_result, task_info},
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-
-        winner = done.pop()
-
-        # If first completed task failed, assume the other one succeeds
-        if winner.exception():
-            winner = pending.pop()
-            await winner
-
-        # Cancel any leftover task
-        for task in pending:
-            task.cancel()
-
-        # Handle outcome
-        if winner is task_no_result:
-            return {}, []
-
-        # Success path
-        await info_button.click()
+        await page.get_by_role("button", name="Licensee Info").click()
         await page.get_by_title("LICENCE DETAILS").wait_for()
 
         content = await page.content()
         return parse_response(content)
 
-    except PlaywrightTimeoutError:
-        # Explicit timeout handling (page structure changed / slow response)
-        return {}, []
-
-    except Exception:
-        # Unexpected failure
+    except Exception as e:
         return {}, []
 
 
@@ -138,11 +101,11 @@ async def boaq_search_reg_no(page: Page, reg_no):
 
 async def handle_sheet(df, sheet_name, input_file, args=None):
     if args and args.fetch:
-        logger.info("Fetching qbcc_individual updates...")
+        logger.info("Fetching qbcc_company updates...")
         await fetch_updates(df, sheet_name)
 
     if args and args.apply:
-        logger.info("Applying qbcc_individual updates...")
+        logger.info("Applying qbcc_company updates...")
         await apply_updates(sheet_name, input_file)
 
 
@@ -159,11 +122,9 @@ async def apply_updates(sheet_name, input_filename):
         if key in [None, ""]:
             continue
 
-        qbcc_individual = find_by_key(DB_NAME, key)
+        qbcc = find_by_key(DB_NAME, key)
 
-        ws.cell(row=row_idx + 1, column=value_column).value = qbcc_individual.get(
-            "status"
-        )
+        ws.cell(row=row_idx + 1, column=value_column).value = qbcc.get("status")
         ws.cell(row=row_idx + 1, column=timestamp_column).value = datetime.now()
 
     base, ext = os.path.splitext(input_filename)
@@ -176,7 +137,7 @@ async def apply_updates(sheet_name, input_filename):
 async def fetch_updates(df, sheet_name):
     async with async_playwright() as playwright:
         chromium = playwright.chromium  # or "firefox" or "webkit".
-        browser = await chromium.launch()
+        browser = await chromium.launch(headless=False)
         page = await browser.new_page()
 
         # other actions...

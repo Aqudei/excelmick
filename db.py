@@ -21,10 +21,10 @@ def get_db(db_name: str) -> TinyDB:
 # surveyor_db = TinyDB("./data/surveyor.json")
 
 
-def architect_find(registration_no):
+def architect_find(key):
     db = get_db("architects")
     Architect = Query()
-    return db.search(Architect.registration_no == f"{registration_no}")
+    return db.search(Architect.key == f"{key}")
 
 
 def architect_set_status(data, status):
@@ -37,26 +37,36 @@ def architect_set_status(data, status):
     if archs and len(archs) > 0:
         db.update(
             {"status": status},
-            Architect.registration_no == f"{data.licence_number}",
+            Architect.key == f"{data.licence_number}",
         )
     else:
-        db.insert({"status": status, "registration_no": f"{data.licence_number}"})
+        db.insert({"status": status, "key": f"{data.licence_number}"})
 
 
 def find_by_name(db_name: str, name):
     db = get_db(db_name)
     q = Query()
     result = db.search(q.name == name)
-    if result and len(result)>0:
+    if result and len(result) > 0:
         return result[0]
 
     return {}
 
 
-def upsert(db_name: str, data, name):
+def find_by_key(db_name: str, key):
     db = get_db(db_name)
     q = Query()
-    items = db.search(q.name == name)
+    result = db.search(q.key == key)
+    if result and len(result) > 0:
+        return result[0]
+
+    return {}
+
+
+def upsert(db_name: str, data, key):
+    db = get_db(db_name)
+    q = Query()
+    items = db.search(q.key == key)
     if items and len(items) > 0:
         for item in items:
             doc_id = item.doc_id
