@@ -14,6 +14,7 @@ DB_NAME = "surveyor"
 
 
 async def fetch_item(name: str):
+    logger.info(f"Fetching surveyor: {name}...")
     url = "https://sbq.com.au/find-a-surveyor/search-sbq-registrant-list/"
     # "?type=all&search-type=name&title=Paul+Leonard+Heald&postcode=&radius=10&q=Search"
     params = {
@@ -66,12 +67,14 @@ async def boaq_search_reg_no(page: Page, reg_no):
     pass
 
 
-async def handle_sheet(df, sheet_name, input_file):
-    logger.info("Fetching surveyor updates...")
-    await fetch_updates(df, sheet_name)
+async def handle_sheet(df, sheet_name, input_file, args=None):
+    if args and args.fetch:
+        logger.info("Fetching surveyor updates...")
+        await fetch_updates(df, sheet_name)
 
-    logger.info("Applying surveyor updates...")
-    await apply_updates(sheet_name, input_file)
+    if args and args.apply:
+        logger.info("Applying surveyor updates...")
+        await apply_updates(sheet_name, input_file)
 
 
 async def apply_updates(sheet_name, input_file):
@@ -83,13 +86,16 @@ async def apply_updates(sheet_name, input_file):
     reg_no_column = 8
 
     for row_idx, _row in enumerate(ws.iter_rows(min_row=2), start=1):
-        fullname = (
+        name = (
             f"{(_row[1].value or '').strip()} {(_row[0].value or '').strip()}".strip()
         )
-        if fullname in [None, ""]:
+        if name in [None, ""]:
+            name = f"{(_row[2].value or '').strip()}"
+
+        if name in [None, ""]:
             continue
 
-        surveyor = find_by_name(DB_NAME, fullname)
+        surveyor = find_by_name(DB_NAME, name)
 
         ws.cell(row=row_idx + 1, column=value_column).value = surveyor.get("status")
         ws.cell(row=row_idx + 1, column=timestamp_column).value = datetime.now()
@@ -105,10 +111,13 @@ async def fetch_updates(df, sheet_name):
     logger.info("Processing 'surveyor' sheet <{}>...".format(sheet_name))
 
     for index, row in df.iterrows():
-        fullname = f"{(row.first_name or '').strip('\r\n\t ')} {(row.surname or '').strip('\r\n\t ')}"
-        info = await fetch_item(fullname)
+        name = f"{(row.first_name or '').strip('\r\n\t ')} {(row.surname or '').strip('\r\n\t ')}".strip()
+        if name in [None, ""]:
+            name = f"{(row.company or '').strip()}".strip()
+
+        info = await fetch_item(name)
         if not info:
-            upsert(DB_NAME, {"status": "Not Found", "name": fullname}, fullname)
+            upsert(DB_NAME, {"status": "Not Found", "name": name}, name)
 
         else:
-            upsert(DB_NAME, {**info, "status": "Active"}, fullname)
+            upsert(DB_NAME, {**info, "status": "Active"}, name)

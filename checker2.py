@@ -1,9 +1,10 @@
 import asyncio
-from processors import surveyor
+from processors import surveyor, qbcc_individual, architects
 import pandas as pd
 import openpyxl
 import logging
 from logging_config import setup_logging
+import argparse
 
 setup_logging()
 
@@ -30,7 +31,7 @@ def get_sheets_as_df(file_path):
     return sheets_data
 
 
-async def main():
+async def main(args):
     file_path = r"C:\dev\excelmick\processing\24.09.27 - Competent Person Register.xlsx"
     dfs = get_sheets_as_df(file_path)
 
@@ -39,9 +40,14 @@ async def main():
         # if "archi" in sheet_name.lower():
         #     await architects.handle_sheet(df, sheet_name, file_path)
 
-        if "surveyor" in sheet_name.lower():
-            await surveyor.handle_sheet(df, sheet_name, file_path)
-
+        # if "surveyor" in sheet_name.lower():
+        #     await surveyor.handle_sheet(df, sheet_name, file_path, args)
+        if "qbcc" in sheet_name.lower() and 'individual' in sheet_name.lower():
+            await qbcc_individual.handle_sheet(df, sheet_name, file_path, args)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--fetch",action='store_true')
+    parser.add_argument("--apply",action='store_true')
+    args = parser.parse_args()
+    asyncio.run(main(args))
